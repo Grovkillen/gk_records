@@ -1,0 +1,17 @@
+<%# The document page: where a read-in document came from, the reading (with a link) and the source it cites
+    (supported_by), under the category and date; nothing for a document made by hand %>
+<% origin = gk_records_origin(document, 'file') %>
+<% if origin.present? %>
+<% cited = gk_records_citations(document) %>
+<%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+<p class="gk-records-document-origin" id="gk-records-document-origin"><span class="gk-records-meta"><%= l(:label_gk_records_docimp_origin) %>:</span><%= origin %>
+  <% if cited.present? %><br><%= cited %><% end %></p>
+<%= javascript_tag(<<~JS)
+  (function () {
+    var line = document.getElementById('gk-records-document-origin');
+    var place = document.querySelector('#content > h2 + p');
+    if (line && place) place.insertAdjacentElement('afterend', line);
+  })();
+JS
+%>
+<% end %>

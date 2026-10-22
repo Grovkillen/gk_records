@@ -1,0 +1,139 @@
+<%# The page of links for one thing (links_view): grouped by kind and direction, filters, the voided ones behind a
+    switch, and adding by hand for the kinds that are open for it. %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% ref = "#{@target_def.key}:#{@target.id}" %>
+<% html_title l(:label_gk_records_links), GkRecords::Targets.label(@target) %>
+<h2><%= l(:label_gk_records_links) %> &#187; <%= gk_records_ref_link(@target_def.key, @target.id) %></h2>
+<p class="gk-records-meta"><%= l(:text_gk_records_links_page, count: @all_count) %></p>
+
+<% if @kinds_here.size > 1 || @things_here.size > 1 || @voided_count.positive? || params[:kind].present? || params[:with].present? %>
+<%= form_tag gk_records_links_page_path, method: :get, class: 'gk-records-filter' do %>
+  <%= hidden_field_tag 'target', ref, id: nil %>
+  <label><%= l(:label_gk_records_kind) %>
+    <%= select_tag 'kind', options_for_select([[l(:label_all), '']] + @kinds_here.map { |k| [GkRecords::Kinds.label(:link, k), k] }, params[:kind]), id: 'gk_records_f_kind' %></label>
+  <label><%= l(:label_gk_records_with) %>
+    <%= select_tag 'with', options_for_select([[l(:label_all), '']] + @things_here.map { |k| [GkRecords::Targets.thing_label(k), k] }, params[:with]), id: 'gk_records_f_with' %></label>
+  <% if @voided_count.positive? %>
+    <label><%= check_box_tag 'voided', '1', params[:voided] == '1', id: 'gk_records_f_voided' %> <%= l(:label_gk_records_show_voided, count: @voided_count) %></label>
+  <% end %>
+  <%= submit_tag l(:button_apply), name: nil %>
+<% end %>
+<% end %>
+
+<%# Lägg till koppling sits in the box above the grouped links, minimized, open when there are no links or a
+    search or kind choice is under way; #gk-records-add (the tab's link) opens it %>
+<% if @linkable && @manual_kinds.any? %>
+<% add_box = capture do %>
+<div class="tabular">
+  <p class="gk-records-meta"><%= l(:text_gk_records_add_link) %></p>
+  <%= form_tag gk_records_links_page_path(anchor: 'gk-records-add'), method: :get do %>
+    <%= hidden_field_tag 'target', ref, id: nil %>
+    <%# A kind with targets offers only those sorts; the kind's option says which (data-targets, none when any sort
+        will do), the script below hides the others when the kind is changed, and the server searches only among
+        allowed sorts %>
+    <%# a reason place's mode is administration, not something to link to by hand (records_1021-SID-16) %>
+    <% add_types = GkRecords::Targets.all.values.reject { |t| %w[setting gk_records_assessment reason_mode].include?(t.key) }.map { |t| [GkRecords::Targets.thing_label(t.key), t.key] }.sort %>
+    <% kind_options = @manual_kinds.map do |k|
+         only = add_types.map(&:last).select { |key| add_type_allowed?(k, key) }
+         [k.label, k.key, only.size == add_types.size ? {} : { data: { targets: only.join(' ').presence || '-' } }]
+       end %>
+    <% off_types = add_types.map(&:last).reject { |key| add_type_allowed?(@add_kind, key) } %>
+    <% add_type = params[:add_type].presence || 'issue' %>
+    <% add_type = (add_types.map(&:last) - off_types).then { |ok| ok.include?(add_type) ? add_type : ok.first } %>
+    <%# one kind to choose: said as text, no list to open (records_1021-SID-43) %>
+    <p><label for="gk_records_add_kind"><%= l(:label_gk_records_link_kind) %></label>
+      <% if kind_options.size == 1 %>
+        <%= hidden_field_tag 'add_kind', kind_options.first[1], id: 'gk_records_add_kind', data: { targets: kind_options.first[2].dig(:data, :targets) } %>
+        <span class="gk-records-only-choice"><%= kind_options.first[0] %></span>
+      <% else %>
+        <%= select_tag 'add_kind', options_for_select(kind_options, @add_kind&.key), id: 'gk_records_add_kind' %>
+      <% end %></p>
+    <p><label for="gk_records_add_type"><%= l(:label_gk_records_with) %></label>
+      <%= select_tag 'add_type', options_for_select(add_types, selected: add_type, disabled: off_types), id: 'gk_records_add_type' %></p>
+    <%# find first, then choose among the hits and save (records_1021-SID-44, 47, 48): Sök right after the field, Rensa
+        empties the search and keeps the kind and the sort %>
+    <p><label for="gk_records_add_q"><%= l(:label_gk_records_find) %></label>
+      <%= text_field_tag 'q', params[:q], size: 40, id: 'gk_records_add_q' %>
+      <%= submit_tag l(:button_gk_records_find), name: nil %>
+      <% if params[:q].present? %>
+        <%= link_to l(:button_gk_records_clear_search),gk_records_links_page_path(target: ref, add_kind: @add_kind&.key, add_type: add_type, anchor: 'gk-records-add'), class: 'icon icon-reload' %>
+      <% end %>
+      <em class="info"><%= l(:text_gk_records_find) %></em></p>
+  <% end %>
+  <% if @candidates %>
+    <% if @candidates.empty? %><p class="nodata"><%= l(:text_gk_records_none_found) %></p><% else %>
+    <%# choose one of the hits, say why, then Spara: the link is saved only by Spara %>
+    <%= form_tag gk_records_links_path(target: ref), method: :post do %>
+      <%= hidden_field_tag 'kind', @add_kind&.key, id: nil %>
+      <%# the hits as a list to choose one of, in the form's own column (records_1021-SID-61) %>
+      <div class="gk-records-hits-row"><span class="gk-records-hits-label"><%= l(:label_gk_records_link_to) %></span>
+        <ul class="gk-records-hits">
+          <% @candidates.each_with_index do |o, i| %>
+            <% oref = GkRecords::Targets.ref(o) %>
+            <li><label class="block"><%= radio_button_tag 'other', oref, @candidates.size == 1, id: "gk-records-hit-#{i}", required: true %>
+              <span><%= gk_records_ref_link(oref.split(':').first, o.id) %></span></label></li>
+          <% end %>
+        </ul>
+        <%# core's paging, with its per page choice, when the hits are more than a page %>
+        <% if @hit_pages && @hit_count > @hit_pages.per_page %><span class="pagination"><%= pagination_links_full @hit_pages, @hit_count %></span><% end %></div>
+      <%# A citation asks where in the source instead of why (optional, never a reason) %>
+      <% if @add_kind&.citation %>
+      <p><label for="gk_records_add_locator"><%= l(:label_gk_records_link_locator) %></label>
+        <%= text_field_tag 'locator', params[:locator], size: 30, maxlength: GkRecordsLink::REASON_MAX, id: 'gk_records_add_locator' %>
+        <em class="info"><%= l(:text_gk_records_link_locator) %></em></p>
+      <% elsif !GkRecords::Reasons.off?('records.link_manual') %>
+      <%# the label only where a reason is required: an optional one folds into the field's own link %>
+      <p><% if GkRecords::Reasons.mode('records.link_manual') == 'required' %><label for="gk_records_add_reason"><%= l(:label_gk_records_link_reason) %> <span class="required">*</span></label><% end %>
+        <%= gk_records_reason_field('records.link_manual', value: params[:reason], size: 70, id: 'gk_records_add_reason', html: { maxlength: GkRecordsLink::REASON_MAX }) %>
+        <em class="info"><%= l(:text_gk_records_link_reason) %></em></p>
+      <% end %>
+      <p><%= submit_tag l(:button_save), name: nil %></p>
+    <% end %>
+    <% end %>
+  <% end %>
+</div>
+<% end %>
+<% add_title = l(:label_gk_records_add_link) %>
+<% add_open = @all_count.to_i.zero? || !@candidates.nil? || params[:add_kind].present? %>
+<div id="gk-records-add">
+<%= respond_to?(:gk_gui_stuff_choices_box) ? gk_gui_stuff_choices_box('records.add_link', add_title, open: add_open) { add_box } : content_tag(:fieldset, content_tag(:legend, add_title) + add_box, class: 'box') %>
+</div>
+<%= javascript_tag do %>
+  (function () {
+    function show() {
+      if (window.location.hash !== '#gk-records-add') return;
+      var f = document.querySelector('#gk-records-add fieldset.collapsed');
+      var lg = f && f.querySelector(':scope > legend');
+      if (lg && window.toggleFieldset) window.toggleFieldset(lg);
+    }
+    // only the sorts the chosen kind may go to
+    function sorts() {
+      var kind = document.getElementById('gk_records_add_kind');
+      var type = document.getElementById('gk_records_add_type');
+      if (!kind || !type) return;
+      // one kind only: a hidden field that carries the sorts itself
+      var chosen = kind.options ? kind.options[kind.selectedIndex] : kind;
+      var only = chosen && chosen.getAttribute('data-targets');
+      var allowed = only ? only.split(' ') : null;
+      var first = null;
+      Array.prototype.forEach.call(type.options, function (o) {
+        var ok = !allowed || allowed.indexOf(o.value) !== -1;
+        o.disabled = !ok;
+        o.hidden = !ok;
+        if (ok && !first) first = o;
+      });
+      var sel = type.options[type.selectedIndex];
+      if ((!sel || sel.disabled) && first) first.selected = true;
+    }
+    function ready() {
+      show();
+      sorts();
+      var kind = document.getElementById('gk_records_add_kind');
+      if (kind) kind.addEventListener('change', sorts);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
+  })();
+<% end %>
+<% end %>
+
+<%= render partial: 'gk_records_links/groups', locals: { compact: false } %>

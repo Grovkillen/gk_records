@@ -1,0 +1,29 @@
+<%# Administration > Inläsningar: every reading, newest first, with what it read and what it did %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<h2><%= l(:label_gk_records_readings) %></h2>
+<p class="info"><%= l(:text_gk_records_readings) %></p>
+<%= form_tag gk_records_readings_path, method: :get, class: 'gk-records-filter' do %>
+  <label><%= l(:field_gk_records_reading_source) %> <%= text_field_tag 'source', params[:source], size: 30 %></label>
+  <%= submit_tag l(:button_apply), name: nil %>
+<% end %>
+<% if @readings.any? %>
+<table class="list gk-records-readings">
+  <thead><tr><th><%= l(:field_gk_records_reading_read_at) %></th><th><%= l(:field_gk_records_reading_source) %></th>
+    <th><%= l(:field_gk_records_reading_route) %></th><th><%= l(:field_gk_records_reading_source_time) %></th>
+    <th><%= l(:field_gk_records_reading_target) %></th><th><%= l(:label_gk_records_done_by) %></th><th><%= l(:field_gk_records_reading_counts) %></th></tr></thead>
+  <tbody>
+  <% @readings.each do |r| %>
+    <tr class="<%= cycle('odd', 'even') %>">
+      <td class="read_at gk-records-when"><%= link_to format_time(r.read_at || r.created_at), gk_records_reading_path(r) %></td>
+      <td class="text"><%= r.source_label %><% if r.made_afterwards %> <span class="badge badge-status-locked"><%= l(:label_gk_records_reading_afterwards) %></span><% end %></td>
+      <td class="route"><%= content_tag('span', l("label_gk_records_reading_route_#{r.route}", default: r.route), class: "gk-records-reading-route gk-records-reading-route-#{r.route}") %><%= " · #{r.format}" if r.format.present? %></td>
+      <td class="source_time"><%= r.source_time ? format_date(User.current.time_to_date(r.source_time)) : '' %></td>
+      <td class="target"><%= GkRecords::Targets.find(r.target_type) ? GkRecords::Targets.thing_label(r.target_type) : r.target_type %></td>
+      <td class="user"><%= r.user ? gk_records_user(r.user) : r.account %></td>
+      <td class="counts"><%= gk_records_reading_counts(r) %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% else %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+<% html_title l(:label_gk_records_readings) %>

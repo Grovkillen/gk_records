@@ -1,0 +1,72 @@
+<%# gk_records: its settings, then Om pluginet and the change log %>
+<% plugin = Redmine::Plugin.find(:gk_records) %>
+<% changelog = ["CHANGELOG.#{current_language}.md", 'CHANGELOG.md'].map { |f| File.join(plugin.directory, f) }.find { |f| File.exist?(f) } %>
+<fieldset class="box"><legend><%= l(:label_gk_records_about) %></legend>
+  <div><strong><%= plugin.name %></strong> <%= plugin.version %></div>
+  <div><%= l(:text_gk_records_description) %></div>
+</fieldset>
+<fieldset class="box tabular"><legend><%= l(:label_gk_records_settings_display) %></legend>
+<p><label for="settings_note_max_length"><%= l(:field_gk_records_note_max_length) %></label>
+  <%= number_field_tag 'settings[note_max_length]', GkRecordsNote.max_length, id: 'settings_note_max_length', min: 100, max: 20000 %></p>
+<p><label for="settings_show_origin_badge"><%= l(:field_gk_records_show_origin_badge) %></label>
+  <%= hidden_field_tag 'settings[show_origin_badge]', '0', id: nil %>
+  <%= check_box_tag 'settings[show_origin_badge]', '1', settings['show_origin_badge'].to_s == '1', id: 'settings_show_origin_badge' %>
+  <em class="info"><%= l(:text_gk_records_show_origin_badge) %></em></p>
+<p><label for="settings_mark_restricted_people"><%= l(:field_gk_records_mark_restricted_people) %></label>
+  <%= hidden_field_tag 'settings[mark_restricted_people]', '0', id: nil %>
+  <%= check_box_tag 'settings[mark_restricted_people]', '1', settings['mark_restricted_people'].to_s != '0', id: 'settings_mark_restricted_people' %>
+  <%# where it is decided: core's role setting, with the way there (records_1021-SID-58, 63, 70) %>
+  <em class="info"><%= l(:text_gk_records_mark_restricted_people, setting: content_tag('strong', l(:field_users_visibility)),
+                          roles: link_to(l(:label_role_and_permissions), roles_path), members: l(:label_users_visibility_members_of_visible_projects)).html_safe %></em></p>
+<%# the number on the tabs Kopplingar and Bedömningar, for the whole installation (records_1021-SID-19) %>
+<p><label for="settings_tab_counts"><%= l(:field_gk_records_tab_counts) %></label>
+  <%= hidden_field_tag 'settings[tab_counts]', '0', id: nil %>
+  <%= check_box_tag 'settings[tab_counts]', '1', settings['tab_counts'].to_s == '1', id: 'settings_tab_counts' %>
+  <em class="info"><%= l(:text_gk_records_tab_counts) %></em></p>
+</fieldset>
+<%# The functions (GkRecords::Features): each with its switch, what it is for, and who turns it on or would use it
+    (records_1021, ALLMÄNT); off hides the pages, the menu rows and the tabs, and keeps what is kept %>
+<% f = GkRecords::Features %>
+<% features = settings['features'].is_a?(Hash) ? settings['features'] : {} %>
+<fieldset class="box tabular"><legend><%= l(:label_gk_records_features) %></legend>
+<p class="info"><%= l(:text_gk_records_features) %></p>
+<% f::SWITCHED.each do |k| %>
+  <% by = f.turned_on_by(k) %>
+  <p><label for="settings_features_<%= k %>"><%= l("label_gk_records_feature_#{k}") %></label>
+    <%= hidden_field_tag "settings[features][#{k}]", (by.any? ? features[k].to_s.presence || '0' : '0'), id: nil %>
+    <%= check_box_tag "settings[features][#{k}]", '1', by.any? || features[k].to_s == '1', id: "settings_features_#{k}", disabled: by.any? %>
+    <em class="info"><%= l("text_gk_records_feature_#{k}") %>
+      <% if by.any? %><br><%= l(:text_gk_records_feature_on_by, plugins: by.map { |p| f.name_of(p) }.join(', ')) %>
+      <% elsif (gone = f.missing_users(k)).any? %><br><%= l(:text_gk_records_feature_unused, plugins: gone.map { |p| f.name_of(p) }.join(', ')) %><% end %></em></p>
+<% end %>
+<%# Verification status: on when a tracker has it, chosen on the tracker's own page (records_1021-SID-28); its name from
+    the locales (records_1021-SID-56: renaming belongs to a fields plugin later) %>
+<% v = GkRecords::Verification %>
+<p><label><%= l(:label_gk_records_feature_verification) %></label>
+  <%# the trackers' names stand out from the sentence (records_1021-SID-69) %>
+  <span><%= v.tracker_ids.any? ? l(:text_gk_records_verification_on_trackers, trackers: safe_join(Tracker.where(id: v.tracker_ids).sorted.map { |t| content_tag('strong', t.name) }, ', ')).html_safe : l(:text_gk_records_verification_off) %>
+    <%= link_to l(:label_tracker_plural), trackers_path %></span>
+  <em class="info"><%= l(v.reviewer ? :text_gk_records_feature_verification_review : :text_gk_records_feature_verification) %></em></p>
+<%= hidden_field_tag 'settings[verification_tracker_ids][]', '', id: nil %>
+<% v.tracker_ids.each do |id| %><%= hidden_field_tag 'settings[verification_tracker_ids][]', id, id: nil %><% end %>
+</fieldset>
+<fieldset class="box tabular"><legend><%= l(:label_gk_records_settings_registered) %></legend>
+<%# The assessment kinds that are data (GkRecords::AssessmentKinds), carried unchanged by this form %>
+<%= hidden_field_tag 'settings[assessment_kinds]', settings['assessment_kinds'].to_s, id: nil %>
+<% data_kinds = GkRecords::AssessmentKinds.all %>
+<% if data_kinds.any? %>
+<p><label><%= l(:label_gk_records_assessment_kinds_data) %></label>
+  <span><%= safe_join(data_kinds.map { |k| k.scale.present? ? "#{k.label} (#{k.scale.map { |v| k.scale_label(v['key']) }.join(', ')})" : k.label }, '; ') %></span>
+  <em class="info"><%= l(:text_gk_records_assessment_kinds_data) %></em></p>
+<% end %>
+<p><label><%= l(:label_gk_records_registered) %></label>
+  <span><%= safe_join(GkRecords::Targets.all.values.map { |t| content_tag('code', t.key) }, ' ') %></span></p>
+</fieldset>
+<% if changelog %>
+<fieldset class="box"><legend><%= l(:label_gk_records_changelog) %></legend>
+  <% unless current_language.to_s.start_with?('en') %><div class="gk-changelog-note"><em><%= l(:text_gk_records_changelog_english) %></em></div><% end %>
+  <details class="gk-changelog"><summary><%= l(:button_show) %></summary>
+  <div class="wiki"><%= Redmine::WikiFormatting.to_html('common_mark', File.read(changelog, encoding: 'UTF-8').sub(/\A.*?(?=^## )/m, '')).html_safe %></div>
+  </details>
+</fieldset>
+<% end %>

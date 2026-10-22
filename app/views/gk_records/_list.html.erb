@@ -1,0 +1,40 @@
+<%# The records part of a target's page (plugins/records partial_and_api, links_view): the notes with the writing
+    box, and one row each for events and links, a count and the way there, never lists. Rendered by the owner
+    plugin's page with gk_records_list(object). %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records', plugin: 'gk_records' %>
+<% end %>
+<% tdef = GkRecords::Targets.for_object(target) %>
+<% ref = "#{tdef.key}:#{target.id}" %>
+<% notes = GkRecordsNote.for_target(tdef.key, target.id).includes(:user, :voided_by, :void_reason).order(:created_at).to_a %>
+<% editable = GkRecords::Targets.editable?(target) %>
+<div class="gk-records-list" id="gk-records" data-gk-records-list>
+  <div class="gk-records-rows">
+    <%= gk_records_events_row(target) %>
+    <%= gk_records_links_row(target) %>
+    <%= gk_records_assessments_row(target) %>
+    <%= gk_records_verification_row(target) if local_assigns[:verification] %>
+  </div>
+  <% roots = notes.select { |n| n.parent_id.nil? } %>
+  <h3><%= l(:label_gk_records_notes) %> (<%= roots.size %>)</h3>
+  <div class="gk-records-pane" data-pane="notes">
+    <% if roots.empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+    <% roots.each do |n| %>
+      <%= render partial: 'gk_records/note', locals: { note: n, notes: notes, editable: editable } %>
+    <% end %>
+    <% if editable %>
+      <%= form_tag gk_records_notes_path, class: 'gk-records-form', id: 'gk-records-form' do %>
+        <%= hidden_field_tag 'target', ref, id: nil %>
+        <%= hidden_field_tag 'parent_id', '', class: 'gk-records-parent' %>
+        <%= hidden_field_tag 'corrects_id', '', class: 'gk-records-corrects' %>
+        <p class="gk-records-form-head">
+          <%= select_tag 'kind', options_for_select(GkRecords::Kinds.of(:note).select { |k| (k.target.nil? || k.target == tdef.key) && GkRecords::Kinds.offered_note?(k.key) }.map { |k| [k.label, k.key] }, 'comment'), class: 'gk-records-kind' %>
+          <span class="gk-records-context"></span>
+        </p>
+        <%= text_area_tag 'body', '', rows: 3, maxlength: GkRecordsNote.max_length, class: 'gk-records-body', placeholder: l(:text_gk_records_light) %>
+        <p><%= submit_tag l(:button_add) %> <a href="#" class="gk-records-reset" hidden><%= l(:button_cancel) %></a></p>
+      <% end %>
+    <% end %>
+  </div>
+</div>

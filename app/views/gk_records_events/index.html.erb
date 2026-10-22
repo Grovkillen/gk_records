@@ -1,0 +1,30 @@
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<h2><%= l(:label_gk_records_events) %><%= " \u00bb #{GkRecords::Targets.label(@target)}" if @target %></h2>
+<%= form_tag gk_records_events_path, method: :get, class: 'gk-records-filter' do %>
+  <%= hidden_field_tag 'target', params[:target] if params[:target].present? %>
+  <label><%= l(:label_gk_records_kind) %> <%= select_tag 'kind', options_for_select([['', '']] + GkRecords::Kinds.of(:event).map { |k| [k.label, k.key] }, params[:kind]) %></label>
+  <label><%= l(:label_gk_records_date_from) %> <%= date_field_tag 'from', params[:from] %></label>
+  <label><%= l(:label_gk_records_date_to) %> <%= date_field_tag 'to', params[:to] %></label>
+  <%= submit_tag l(:button_apply), name: nil %>
+  <%# core's Rensa beside Verkställ, only when a filter is set; the target stays, it is the page, not a filter (records_1021-SID-29) %>
+  <% if @filtered %><%= link_to sprite_icon('reload', l(:button_clear)), gk_records_events_path(target: params[:target].presence), class: 'icon icon-reload' %><% end %>
+<% end %>
+<% if @events.any? %>
+<table class="list gk-records-events-table">
+  <thead><tr><th><%= l(:field_created_on) %></th><th><%= l(:label_gk_records_kind) %></th><th><%= l(:label_gk_records_target) %></th>
+    <th><%= l(:label_gk_records_done_by) %></th><th><%= l(:label_gk_records_changes) %></th></tr></thead>
+  <tbody>
+  <% @events.each do |e| %>
+    <tr>
+      <td class="created_on gk-records-when"><%= format_time(e.created_at) %></td>
+      <td class="kind"><%= gk_records_event_kind_tag(e.kind) %><%= gk_records_origin_badge(e.origin) %></td>
+      <td class="target"><%= gk_records_ref_link(e.target_type, e.target_id) %></td>
+      <td class="user"><%= gk_records_who(e) %></td>
+      <%# long details fold so the row stays short; the reason always shows in full (records_1021-SID-26) %>
+      <td class="text"><% if (d = gk_records_details(e, fold: true)).present? %><ul class="gk-records-diff"><%= d %></ul><% end %>
+        <%= gk_records_reason(e) %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% else %><p class="nodata"><%= l(:label_no_data) %></p><% end %>

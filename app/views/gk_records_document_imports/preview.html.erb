@@ -1,0 +1,75 @@
+<%# Läs in dokument, step two: per row what the run would do, the files in the zip no row names, and the run. Nothing
+    but the zip is saved until the run. %>
+<% html_title l(:label_gk_records_docimp) %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<h2><%= link_to l(:label_document_plural), project_documents_path(@project) %> &#187;
+  <%= link_to l(:label_gk_records_docimp), gk_records_document_import_path(@project) %> &#187; <%= @kept.filename %></h2>
+
+<% if @error %>
+  <div class="flash error"><%= @error %></div>
+<% else %>
+<% pv = @preview %>
+<p><%= l(:text_gk_records_docimp_summary, list: pv[:list], rows: pv[:rows].size) %>
+  <span class="gk-records-meta"><%= l(:field_gk_records_docimp_zip_sha256) %>: <span class="gk-records-sha"><%= @kept.digest %></span></span></p>
+<% if pv[:stop] %>
+  <p class="warning"><%= l(:text_gk_records_docimp_stop) %></p>
+<% end %>
+<% if pv[:unread].any? %>
+  <p class="gk-records-meta"><%= l(:text_gk_records_docimp_unread, columns: pv[:unread].join(', ')) %></p>
+<% end %>
+
+<%= form_tag(gk_records_document_import_run_path(@project), id: 'gk-records-docimp-form') do %>
+<%= hidden_field_tag 'file', @kept.token, id: nil %>
+<div class="autoscroll">
+<table class="list gk-records-docimp-rows">
+  <thead><tr><th><%= l(:label_gk_records_docimp_line) %></th><th><%= l(:label_gk_records_docimp_field_file) %></th><th><%= l(:field_filesize) %></th>
+    <th>SHA-256</th><th><%= l(:label_gk_records_docimp_field_title) %></th><th><%= l(:label_project) %></th><th><%= l(:field_category) %></th>
+    <th><%= l(:label_gk_records_docimp_field_source_issue) %></th><th><%= l(:label_gk_records_docimp_outcome) %></th></tr></thead>
+  <tbody>
+  <% pv[:rows].each do |r| %>
+    <tr class="gk-records-docimp-<%= r['status'] %>">
+      <td class="line"><%= r['line'] %></td>
+      <td class="text"><%= r['entry'] || r['file'].presence || '-' %></td>
+      <td class="size"><%= r['bytes'] ? number_to_human_size(r['bytes']) : '' %></td>
+      <td class="digest gk-records-sha"><%= r['sha256'] %></td>
+      <td class="name"><%= r['title'].presence || (r['entry'] && File.basename(r['entry'])) %>
+        <% [%w[source_text label_gk_records_docimp_field_source_text], %w[edition label_gk_records_docimp_field_edition], %w[date label_gk_records_docimp_field_date]].each do |f, key| %>
+          <% if r[f].present? %><div class="gk-records-meta"><%= l(key).upcase_first %>: <%= r[f] %></div><% end %>
+        <% end %></td>
+      <td class="project"><%= r['project'] ? r['project'].name : r['subproject'] %></td>
+      <td class="category"><%= r['category']&.name %></td>
+      <td class="subject"><% if r['issue'] %><%= link_to_issue r['issue'], subject: true, tracker: false %><% elsif r['source_issue'].present? %><%= r['source_issue'] %><% end %></td>
+      <td class="status"><strong><%= content_tag('span', l("label_gk_records_docimp_status_#{r['status']}"), class: "gk-records-docimp-status gk-records-docimp-status-#{r['status']}") %></strong>
+        <% if r['twin_line'] %><div><%= l(:text_gk_records_docimp_twin, line: r['twin_line']) %></div><% end %>
+        <% r['already'].each do |d| %><div><%= l(:text_gk_records_docimp_already) %> <%= link_to d.title, document_path(d) %></div><% end %>
+        <% if %w[already again].include?(r['status']) %>
+          <label class="gk-records-docimp-again"><%= check_box_tag 'add_again[]', r['line'], r['status'] == 'again', id: "gk_records_docimp_again_#{r['line']}" %>
+            <%= l(:label_gk_records_docimp_add_again) %></label>
+        <% end %>
+        <% r['errors'].each do |m| %><div class="gk-records-docimp-error"><%= m %></div><% end %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+</div>
+
+<% if pv[:extra].any? %>
+  <p><strong><%= l(:label_gk_records_docimp_extra) %></strong> <span class="gk-records-meta"><%= l(:text_gk_records_docimp_extra) %></span></p>
+  <ul class="gk-records-docimp-extra"><% pv[:extra].each do |n| %><li><%= n %></li><% end %></ul>
+<% end %>
+
+<% todo = pv[:rows].count { |r| GkRecords::DocumentImport.made?(r) } %>
+<div class="box tabular">
+  <p><label for="gk_records_docimp_source"><%= l(:field_gk_records_reading_source) %></label>
+    <%= text_field_tag 'source_label', params[:source_label].presence || File.basename(pv[:list], '.*'), size: 50, maxlength: 200, id: 'gk_records_docimp_source' %>
+    <em class="info"><%= l(:text_gk_records_docimp_source) %></em></p>
+</div>
+<p><%= submit_tag l(:button_gk_records_docimp_run, count: todo), name: nil, disabled: pv[:stop] || todo.zero?,
+                  data: { confirm: l(:text_gk_records_docimp_confirm, count: todo) } %>
+  <%# the same form shown again with the choices made (Lägg till ändå), without saving anything %>
+  <button type="submit" formaction="<%= gk_records_document_import_preview_path(@project) %>" formmethod="get"><%= l(:button_gk_records_docimp_preview_again) %></button></p>
+<% end %>
+<% end %>
+
+<%= button_to l(:button_gk_records_docimp_discard), gk_records_document_import_discard_path(@project), params: { file: @kept.token }, method: :post,
+              data: { confirm: l(:text_gk_records_docimp_discard_confirm) } %>

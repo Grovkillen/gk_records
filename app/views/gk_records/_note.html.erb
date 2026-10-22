@@ -1,0 +1,37 @@
+<% corrected_by = note.corrected_by.to_a %>
+<div class="gk-records-note<%= ' gk-records-voided' if note.voided? %><%= ' gk-records-corrected' if corrected_by.any? %>" id="gk-records-note-<%= note.id %>">
+  <div class="gk-records-note-head">
+    <span class="gk-records-kindtag gk-records-kind-<%= note.kind %>"><%= GkRecords::Kinds.label(:note, note.kind) %></span>
+    <%= gk_records_user(note.user, system: false, on: @target) %>
+    <span class="gk-records-when"><%= format_time(note.created_at) %></span>
+    <a href="#gk-records-note-<%= note.id %>" class="gk-records-num">#<%= note.id %></a><%= gk_records_origin_badge(note.origin) %>
+    <% note.corrects.each do |c| %><span class="gk-records-meta"><%= l(:text_gk_records_corrects) %> <%= link_to "##{c.id}", "#gk-records-note-#{c.id}" %></span><% end %>
+    <% if editable && !note.voided? %>
+      <span class="gk-records-actions">
+        <a href="#" class="gk-records-reply" data-id="<%= note.id %>"><%= l(:button_gk_records_reply) %></a>
+        <% if note.user_id == User.current.id || User.current.admin? %>
+          <a href="#" class="gk-records-correct" data-id="<%= note.id %>"><%= l(:button_gk_records_correct) %></a>
+          <a href="#" class="gk-records-void" data-url="<%= gk_records_note_void_path(note) %>" data-prompt="<%= l(:text_gk_records_void_prompt) %>" data-reason-mode="<%= GkRecords::Reasons.mode('records.note_void') %>"><%= l(:button_gk_records_void) %></a>
+        <% end %>
+      </span>
+    <% end %>
+  </div>
+  <% if note.voided? %>
+    <details class="gk-records-voided-body">
+      <summary><%= l(:text_gk_records_voided, user: GkRecords::Visibility.name_for(note.voided_by, system: ''), when: format_time(note.voided_at)) %><%= gk_records_restricted_mark(note.voided_by) %><% if note.void_reason %>: <%= note.void_reason.shown_body %><% end %></summary>
+      <div class="gk-records-body-text"><%= gk_records_light(note.shown_body) %></div>
+      <%= gk_records_text_now(note.body_now) %>
+    </details>
+  <% else %>
+    <%# A system text in the reader's language as it stood, and the text now when it has changed %>
+    <div class="gk-records-body-text"><%= gk_records_light(note.shown_body) %></div>
+    <%= gk_records_text_now(note.body_now) %>
+  <% end %>
+  <% if corrected_by.any? %><div class="gk-records-meta"><%= l(:text_gk_records_corrected_by) %> <%= safe_join(corrected_by.map { |c| link_to("##{c.id}", "#gk-records-note-#{c.id}") }, ', ') %></div><% end %>
+  <% replies = notes.select { |r| r.parent_id == note.id } %>
+  <% if replies.any? %>
+    <div class="gk-records-replies">
+      <% replies.each do |r| %><%= render partial: 'gk_records/note', locals: { note: r, notes: notes, editable: editable } %><% end %>
+    </div>
+  <% end %>
+</div>

@@ -1,0 +1,184 @@
+/* gk_records: logical properties only (5.22); core's colour variables */
+.gk-records-list { margin-block: 1em; }
+.gk-records-tabs ul { margin-block-end: 0; }
+.gk-records-pane { padding-block: 0.5em; }
+.gk-records-note { padding-block: 0.4em; border-block-end: 1px solid var(--oc-gray-2); }
+.gk-records-note-head { font-size: 0.9em; color: var(--oc-gray-7); display: flex; flex-wrap: wrap; gap: 0.4em; align-items: center; }
+.gk-records-actions { margin-inline-start: auto; display: inline-flex; gap: 0.6em; }
+.gk-records-body-text { margin-block: 0.2em; }
+.gk-records-body-text p { margin-block: 0.2em; }
+.gk-records-replies { margin-inline-start: 1.5em; border-inline-start: 2px solid var(--oc-gray-3); padding-inline-start: 0.8em; }
+.gk-records-kindtag { display: inline-block; padding-inline: 5px; border-radius: 3px; background: var(--oc-gray-2); color: var(--oc-gray-9); font-size: 0.85em; }
+.gk-records-kind-reason { background: var(--oc-yellow-1); color: var(--oc-orange-9); }
+.gk-records-kind-question { background: var(--oc-blue-0); color: var(--oc-blue-9); }
+.gk-records-kind-answer { background: var(--oc-green-0); color: var(--oc-green-9); }
+.gk-records-kind-dispute { background: var(--oc-red-0); color: var(--oc-red-9); }
+.gk-records-when { color: var(--oc-gray-6); font-size: 0.9em; white-space: nowrap; }
+.gk-records-num { color: var(--oc-gray-6); }
+.gk-records-meta { font-size: 0.9em; color: var(--oc-gray-7); font-style: italic; }
+.gk-records-voided > .gk-records-note-head, .gk-records-voided-body summary { color: var(--oc-gray-6); }
+.gk-records-voided-body summary { cursor: pointer; font-style: italic; }
+.gk-records-corrected > .gk-records-body-text { color: var(--oc-gray-7); }
+.gk-records-origin { font-size: 0.8em; padding-inline: 4px; border: 1px solid var(--oc-gray-4); border-radius: 3px; color: var(--oc-gray-7); }
+.gk-records-form { margin-block-start: 0.8em; }
+.gk-records-form-head { display: flex; gap: 0.6em; align-items: center; margin-block: 0.3em; }
+.gk-records-body { inline-size: 100%; box-sizing: border-box; }
+.gk-records-events, .gk-records-links { list-style: none; padding-inline-start: 0; }
+.gk-records-events > li, .gk-records-links > li { padding-block: 0.3em; border-block-end: 1px solid var(--oc-gray-2); }
+.gk-records-diff { margin-block: 0.2em; font-size: 0.9em; }
+.gk-records-diff del { color: var(--oc-red-8); }
+.gk-records-diff ins { color: var(--oc-green-8); text-decoration: none; }
+.gk-records-reason { margin-block: 0.2em; padding-inline: 0.6em; border-inline-start: 3px solid var(--oc-yellow-5); background: var(--oc-yellow-0); }
+.gk-records-filter { display: flex; flex-wrap: wrap; gap: 1em; align-items: center; margin-block: 0.5em 1em; }
+table.gk-records-events-table td { text-align: start; vertical-align: top; }
+table.gk-queries-list td ul.gk-records-diff, table.gk-queries-list td .gk-records-reason { text-align: start; }
+.gk-records-reason-by { display: block; font-size: 0.85em; font-weight: bold; }
+.gk-records-system { font-style: italic; }
+.gk-records-events > li[hidden] { display: none; }
+/* links_view: one row on the thing, the page and the tab */
+.gk-records-rows { margin-block-end: 0.6em; }
+.gk-records-row { margin-block: 0.2em; display: flex; flex-wrap: wrap; gap: 0.6em; align-items: center; }
+.gk-records-count { font-weight: bold; }
+.gk-records-by { color: var(--oc-gray-7); font-size: 0.9em; }
+.gk-records-by + .gk-records-by::before { content: "\00b7"; margin-inline-end: 0.6em; color: var(--oc-gray-5); }
+.gk-records-attention { padding-inline: 6px; border-radius: 3px; background: var(--oc-yellow-1); color: var(--oc-orange-9); border-inline-start: 3px solid var(--oc-orange-6); }
+.gk-records-hidden { font-style: italic; color: var(--oc-gray-6); }
+.gk-records-group { margin-block: 1em 0.3em; }
+table.gk-records-links-table td { text-align: start; vertical-align: top; }
+/* every group's table has the same columns: one fixed width per column, so that they stand in a line down the page */
+table.gk-records-links-table { table-layout: fixed; inline-size: 100%; }
+table.gk-records-links-table td.gk-records-other { inline-size: 30%; overflow-wrap: anywhere; }
+table.gk-records-links-table td.buttons { inline-size: 9em; }
+table.gk-records-links-table td.gk-records-thing { inline-size: 9em; }
+table.gk-records-links-table td.gk-records-state { inline-size: 10em; color: var(--oc-gray-7); }
+table.gk-records-links-table td.gk-records-by-when { inline-size: 22em; }
+table.gk-records-links-table tr.gk-records-voided td { color: var(--oc-gray-6); }
+table.gk-records-links-table tr.gk-records-voided td.gk-records-other { text-decoration: line-through; }
+.gk-records-open { margin-block-start: 0.8em; }
+.gk-records-issue-links .gk-records-row { margin-block: 0.4em; }
+/* link_semantics: the reason of a link made by hand */
+table.gk-records-links-table td.gk-records-why { color: var(--oc-gray-8); font-style: italic; }
+/* assessments: each row a whole assessment */
+table.gk-records-assess-table td { text-align: start; vertical-align: top; }
+ul.gk-records-values { list-style: none; margin: 0; padding: 0; }
+ul.gk-records-values del { color: var(--oc-gray-6); margin-inline-start: 0.4em; }
+.gk-records-vlabel { color: var(--oc-gray-7); }
+.gk-records-basis { margin-block-start: 0.4em; font-style: italic; }
+/* people not everyone may see: an icon after the name, the count on hover and for screen readers */
+.gk-records-restricted { display: inline-flex; align-items: center; margin-inline-start: 0.25em; vertical-align: -0.1em; color: var(--gk-theme-color-warning, currentColor); cursor: help; }
+.gk-records-restricted svg, .gk-records-restricted .gk-icon { inline-size: 1em; block-size: 1em; }
+.gk-records-restricted-text { font-size: 0.85em; font-style: italic; }
+/* The reading beside a field, and the reading's page */
+.gk-records-reading-origin { display: inline-block; margin-inline-start: 0.5em; font-size: 0.85em; color: #777; }
+.gk-records-reading-origin a { color: inherit; text-decoration: underline dotted; }
+.gk-records-sha { overflow-wrap: anywhere; }
+.gk-records-manifest { max-block-size: 30em; overflow: auto; padding: 0.5em; white-space: pre-wrap; }
+/* A citation's place in the source, and what a thing cites beside its own source text */
+table.gk-records-links-table td.gk-records-why.gk-records-locator { font-style: normal; }
+.gk-records-citation { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+.gk-records-locator { color: var(--oc-gray-8); }
+.gk-records-state-closed { white-space: nowrap; }
+/* The verification status with its review and form; verified but changed since the review in a style of its own */
+/* at the bottom: with Ändra status open its fields stand a line under its summary, and they stay in one line with the
+   project list and Begär granskning beside them */
+.gk-records-verification-box { display: inline-flex; flex-wrap: wrap; align-items: flex-end; gap: 0.4em; }
+.gk-records-verification-changed { background: transparent; color: var(--oc-green-9, #2b8a3e); border: 1px dashed var(--oc-green-7, #37b24d); font-style: italic; }
+.gk-records-verification-edit summary { cursor: pointer; font-size: 0.9em; }
+.gk-records-verification-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; margin-block-start: 0.3em; }
+.gk-records-verification-form input[type=submit], .gk-records-verification-form button { margin: 0; }
+/* The document import, the preview's rows and the origin line on a document's page */
+table.gk-records-docimp-rows td { vertical-align: top; }
+table.gk-records-docimp-rows td.gk-records-sha { font-family: monospace; font-size: 0.85em; max-inline-size: 12em; }
+.gk-records-docimp-error { color: var(--oc-red-8, #c92a2a); }
+tr.gk-records-docimp-missing td, tr.gk-records-docimp-error td, tr.gk-records-docimp-unknown_project td { background: var(--oc-red-0, #fff5f5); }
+tr.gk-records-docimp-already td { color: var(--oc-gray-7); }
+.gk-records-docimp-again { display: block; margin-block-start: 0.3em; font-weight: normal; }
+.gk-records-document-origin { margin-block: 0.3em 0.8em; }
+.gk-records-document-origin .gk-records-reading-origin { margin-inline-start: 0.4em; }
+/* Administration > Skäl: one table per plugin with the same columns, so that the columns stand in one line down the page
+   (human test fritt_1017_702-SID-15); the mode, the reason and Save keep to one row */
+table.gk-records-reasons { table-layout: fixed; }
+table.gk-records-reasons col.gk-records-c-place { inline-size: 34%; }
+table.gk-records-reasons col.gk-records-c-default { inline-size: 12%; }
+table.gk-records-reasons col.gk-records-c-now { inline-size: 10%; }
+table.gk-records-reasons col.gk-records-c-mode { inline-size: 44%; }
+table.gk-records-reasons td.buttons form { display: flex; gap: 0.4em; align-items: center; justify-content: flex-start; }
+/* Save on a row is dimmed and off until the row's mode is changed (SID-16); the title says why */
+.gk-records-reason-mode-form input[type=submit]:disabled { opacity: 0.45; cursor: default; }
+/* human test records_1021: the headings stand as their cells do (SID-05, 20, 22, 27); core centres th and most td */
+table.gk-records-events-table th, table.gk-records-links-table th, table.gk-records-assess-table th,
+table.gk-records-reasons th, table.gk-records-readings th { text-align: start; }
+table.gk-records-readings td, table.gk-records-reasons td { text-align: start; }
+/* a group's heading in the Links tab has no line under it (SID-10; core draws one under every h4) */
+h4.gk-records-group { border-block-end: 0; }
+/* the status stands in the middle of the row's line (SID-09). Core lifts every badge 4px (.badge inset-block-end,
+   meant for headings), which put the status 3-4px above the label and the cell's middle (records_1021-SID-09, 64);
+   measured in the browser: the box from the line's top, the badge on the label's middle */
+.gk-records-verification-box { align-items: center; }
+.badge.gk-records-verification { inset-block-end: 0; }
+div.issue .gk-records-verification-row .gk-records-verification-box { vertical-align: top; }
+/* in an assessment's cell a block as wide as its text, so the cell's middle is the badge's (SID-21, 51, 64) */
+td.gk-records-verification-cell .badge.gk-records-verification { display: block; inline-size: fit-content; margin-block: 0; inset-block-end: 0; }
+/* Använd, Ändra and × as high as the form's Save, whatever the theme makes it (the script sets --gk-reason-btn from
+   Save's height), × square, all on Save's middle (records_1021-SID-59, 65) */
+.gk-records-reason-commit, .gk-records-reason-change { box-sizing: border-box; block-size: var(--gk-reason-btn, auto); vertical-align: middle; }
+.gk-records-reason-close { box-sizing: border-box; inline-size: var(--gk-reason-btn, 1.6em); block-size: var(--gk-reason-btn, 1.6em); padding: 0;
+  font-size: 1.25em; line-height: 1; vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+/* an event's details beyond the first two are hidden in the same list until "Visa alla" (SID-26) */
+ul.gk-records-diff li.gk-records-more-item { list-style: none; }
+a.gk-records-show-all { font-size: 0.9em; }
+/* records_1021 second round: the points of an event's changes stand at the cell's edge, no indent (SID-35) */
+ul.gk-records-diff { padding-inline-start: 0; margin-inline-start: 0; list-style-position: inside; }
+/* the status row on an issue: core's value box and the row group around it (.splitcontent) both scroll (overflow auto),
+   which clipped the badge and hid Ändra status's box in a scrollbar (SID-09, 32, 39, 40) */
+div.issue .attribute.gk-records-verification-row .value { overflow: visible; }
+div.issue .splitcontent:has(.gk-records-verification-row) { overflow: visible; }
+/* Ändra status opens as a box over the page, so the badge beside it stays where it is (SID-34) */
+.gk-records-verification-box { position: relative; }
+.gk-records-verification-edit[open] > .gk-records-verification-form { position: absolute; inset-inline-start: 0; inset-block-start: 100%; z-index: 20;
+  margin-block-start: 0.2em; padding: 0.5em; background: var(--gk-theme-surface, Canvas); border: 1px solid var(--oc-gray-4, #ced4da);
+  border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); white-space: nowrap; inline-size: max-content; flex-wrap: nowrap; }
+/* the reason written and used: shown as text with Ändra and ×, the field closed (SID-31, 38) */
+.gk-records-reason-used { display: inline-flex; align-items: center; gap: 0.4em; vertical-align: middle; }
+.gk-records-reason-used-text { font-style: italic; }
+/* what the field hides stays hidden: a display above would show it beside the field (SID-46, 52, 53) */
+.gk-records-reason-wrap [hidden], .gk-records-reason-box[hidden], .gk-records-reason-used[hidden],
+.gk-records-setting-reason [hidden] { display: none !important; }
+/* Save is dimmed and off while a reason stands open and not used (records_1021, third round) */
+input[type=submit][data-gk-reason-hold], button[data-gk-reason-hold] { opacity: 0.45; cursor: default; }
+/* the text and the badges stand in the middle of their rows (SID-49, 50, 51) */
+table.gk-records-links-table td, table.gk-records-assess-table td { vertical-align: middle; }
+table.gk-records-assess-table .gk-records-basis { margin-block: 0; }
+/* Lägg till koppling: the hits to choose one of, the only kind as text (SID-43, 47) */
+/* the hits: a list in the form's own column, with its heading where core puts a label (SID-61) */
+.tabular .gk-records-hits-row { padding-block: 3px; padding-inline: 180px 0; clear: inline-start; }
+.tabular .gk-records-hits-label { float: inline-start; margin-inline-start: -180px; inline-size: 175px; text-align: end; font-weight: bold; line-height: 24px; }
+ul.gk-records-hits { list-style: none; margin: 0; padding: 0; }
+ul.gk-records-hits li label.block { line-height: 24px; cursor: pointer; }
+ul.gk-records-hits li input[type=radio] { margin-inline-end: 0.4em; vertical-align: middle; }
+/* the only kind as text, on the line of its label (SID-54: the label's line height, 24px) */
+.gk-records-only-choice { display: inline-block; line-height: 24px; }
+/* the history entry of a verification change: its note as records' reason, indented as the row (records_1021-SID-71) */
+div.journal div.wiki.gk-records-journal-reason { margin-inline-start: 2.5em; }
+/* Skäl right above its text: core's paragraph margin is taken away from the first one (records_1021-SID-71) */
+div.journal div.wiki.gk-records-journal-reason > p:first-of-type { margin-block-start: 0.1em; }
+/* narrow pages, at core's breakpoint (records_1021-SID-66, 67, 68): the links' rows stack, the thing and the reason on
+   lines of their own; the hits' heading stands above the list as core's labels do, the radios their own size */
+@media screen and (max-width: 899px) {
+  table.gk-records-links-table, table.gk-records-links-table tbody { display: block; }
+  table.gk-records-links-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2em 0.6em; padding-block: 0.4em; }
+  table.gk-records-links-table td { display: block; padding: 0; border: 0; text-align: start; white-space: normal; background: transparent; }
+  /* the kind and the thing on the first line, the reason under them, then the status and who and when */
+  table.gk-records-links-table td.type { order: 1; }
+  table.gk-records-links-table td.name { order: 2; flex: 1 1 0; min-inline-size: 12em; }
+  /* Makulera last on the first line, so it stands in the row's top right corner on the thing's middle, whatever its
+     height (records_1021-SID-72) */
+  table.gk-records-links-table td.buttons { order: 3; margin-inline-start: auto; }
+  table.gk-records-links-table td.comments { order: 4; flex-basis: 100%; }
+  table.gk-records-links-table td.status { order: 5; }
+  table.gk-records-links-table td.author { order: 6; }
+  .tabular .gk-records-hits-row { padding-inline-start: 0; }
+  .tabular .gk-records-hits-label { float: none; display: block; inline-size: 100%; margin-inline-start: 0; text-align: start; }
+  ul.gk-records-hits li label.block { display: flex; align-items: center; gap: 0.4em; }
+  .tabular ul.gk-records-hits input[type=radio] { inline-size: auto; flex: none; margin: 0; }
+}

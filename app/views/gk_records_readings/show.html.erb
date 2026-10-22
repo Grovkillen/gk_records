@@ -1,0 +1,117 @@
+<% r = @reading %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<h2><%= link_to_if User.current.admin?, l(:label_gk_records_readings), gk_records_readings_path %> &#187; <%= GkRecords::Readings.label(r) %></h2>
+
+<div class="box">
+  <table class="attributes gk-records-reading">
+    <tr><th><%= l(:field_gk_records_reading_source) %></th><td><%= r.source_label %>
+      <% if r.source_url.present? %><br><span class="gk-records-meta"><%= r.source_url %></span><% end %>
+      <%# The source register's issue it points to (a citation link, made on the page Kopplingar), beside the text as it
+          came %>
+      <% if (cited = gk_records_citations(r)).present? %><br><%= cited %><% end %></td></tr>
+    <tr><th><%= l(:field_gk_records_reading_route) %></th><td><%= l("label_gk_records_reading_route_#{r.route}", default: r.route) %></td></tr>
+    <% if r.format.present? %><tr><th><%= l(:field_gk_records_reading_format) %></th><td><%= r.format %></td></tr><% end %>
+    <% if r.source_ref.present? %><tr><th><%= l(:field_gk_records_reading_source_ref) %></th><td><%= r.source_ref %></td></tr><% end %>
+    <tr><th><%= l(:field_gk_records_reading_source_time) %></th><td><%= r.source_time ? format_time(r.source_time) : '-' %></td></tr>
+    <% if r.retrieved_at %><tr><th><%= l(:field_gk_records_reading_retrieved) %></th><td><%= format_time(r.retrieved_at) %></td></tr><% end %>
+    <% if r.mapping.present? %><tr><th><%= l(:field_gk_records_reading_mapping) %></th><td><code><%= r.mapping %></code></td></tr><% end %>
+    <%# the selection the reader made in the files: each value with its label when the reading gave one %>
+    <% if (sel = r.selection).is_a?(Hash) && Array(sel['values']).any? %><tr><th><%= l(:field_gk_records_reading_selection) %></th><td><%= Array(sel['values']).map { |v| [v, sel.dig('labels', v.to_s)].compact.join(' ') }.join(', ') %></td></tr><% end %>
+    <tr><th><%= l(:field_gk_records_reading_read_at) %></th><td><%= format_time(r.read_at || r.created_at) %>
+      <% if r.made_afterwards %> <span class="badge badge-status-locked"><%= l(:label_gk_records_reading_afterwards) %></span><% end %></td></tr>
+    <tr><th><%= l(:label_gk_records_done_by) %></th><td><%= r.user ? gk_records_user(r.user) : (r.account.presence || l(:label_gk_records_by_system, default: '-')) %></td></tr>
+    <tr><th><%= l(:field_gk_records_reading_mode) %></th><td><%= l("label_gk_records_reading_mode_#{r.mode}", default: r.mode) %></td></tr>
+    <% if r.target_type.present? %><tr><th><%= l(:field_gk_records_reading_target) %></th><td><%= GkRecords::Targets.find(r.target_type) ? GkRecords::Targets.thing_label(r.target_type) : r.target_type %></td></tr><% end %>
+    <tr><th><%= l(:field_gk_records_reading_counts) %></th><td><%= gk_records_reading_counts(r).presence || '-' %><%= " (#{l(:text_gk_records_reading_rows, count: r.rows)})" if r.rows %></td></tr>
+    <% if r.origin_reading %><tr><th><%= l(:field_gk_records_reading_origin) %></th><td><%= link_to GkRecords::Readings.label(r.origin_reading), gk_records_reading_path(r.origin_reading) %></td></tr><% end %>
+  </table>
+</div>
+
+<h3><%= l(:label_gk_records_reading_files) %></h3>
+<%# the facts about the files read; the files themselves are never kept %>
+<% if (files = r.files).any? %>
+<table class="list gk-records-reading-files">
+  <thead><tr><th><%= l(:field_filename) %></th><th><%= l(:field_gk_records_reading_files_size) %></th><th>SHA-256</th></tr></thead>
+  <tbody>
+  <% files.each do |f| %>
+    <tr class="<%= cycle('odd', 'even') %>">
+      <td class="text"><%= f['file'] %></td>
+      <td class="size"><%= f['size'] ? number_to_human_size(f['size']) : '-' %></td>
+      <td class="digest"><code class="gk-records-sha"><%= f['sha256'] %></code></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% else %>
+  <p class="nodata"><%= l(r.made_afterwards ? :text_gk_records_reading_no_file_afterwards : :text_gk_records_reading_no_file) %></p>
+<% end %>
+
+<%# A reading of a zip (Read in documents) keeps only the zip among its files; the files inside it are in the source's
+    own description: the list itself and the zip's other files by name only, the list's rows that named a file found in
+    the zip with size and digest (records_1021-REC-19). Nothing is shown when that description does not parse. %>
+<% m = r.manifest
+   rows = m.is_a?(Hash) ? Array(m['rows']).select { |x| x.is_a?(Hash) && x['file'].present? && (x['size'] || x['sha256']) }.uniq { |x| x['file'] } : [] %>
+<% if rows.any? %>
+<% inner = [m['list'].presence && { 'file' => m['list'].to_s }].compact + rows +
+           Array(m['other_files']).filter_map { |n| { 'file' => n.to_s } if n.present? }
+   reset_cycle %>
+<h3><%= l(:label_gk_records_reading_zip_files) %></h3>
+<table class="list gk-records-reading-files gk-records-reading-zip-files">
+  <thead><tr><th><%= l(:field_filename) %></th><th><%= l(:field_gk_records_reading_files_size) %></th><th>SHA-256</th></tr></thead>
+  <tbody>
+  <% inner.each do |f| %>
+    <tr class="<%= cycle('odd', 'even') %>">
+      <td class="text"><%= f['file'] %></td>
+      <td class="size"><%= f['size'] ? number_to_human_size(f['size']) : '-' %></td>
+      <td class="digest"><% if f['sha256'].present? %><code class="gk-records-sha"><%= f['sha256'] %></code><% else %>-<% end %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% end %>
+
+<% if m %>
+  <h3><%= l(:label_gk_records_reading_manifest) %></h3>
+  <pre class="gk-records-manifest"><%= JSON.pretty_generate(m) %></pre>
+<% end %>
+
+<h3><%= l(:label_gk_records_reading_objects) %> (<%= @origins.map { |o| [o.target_type, o.target_id] }.uniq.size %>)</h3>
+<% if @origins.empty? %>
+  <p class="nodata"><%= l(:label_no_data) %></p>
+<% else %>
+<table class="list gk-records-reading-objects">
+  <thead><tr><th><%= l(:label_gk_records_target) %></th><th><%= l(:field_gk_records_reading_fields) %></th><th><%= l(:field_gk_records_reading_source_id) %></th>
+    <th><%= l(:field_gk_records_reading_source) %></th></tr></thead>
+  <tbody>
+  <% @origins.group_by { |o| [o.target_type, o.target_id] }.each do |(key, id), rows| %>
+    <tr class="<%= cycle('odd', 'even') %>">
+      <td class="target"><%= gk_records_ref_link(key, id) %></td>
+      <td class="text"><%= rows.map(&:field).join(', ') %></td>
+      <td class="source_id"><%= rows.map(&:source_id).compact.uniq.join(', ') %></td>
+      <td class="text"><%= rows.map(&:source).compact.uniq.join(', ') %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% end %>
+
+<h3><%= l(:label_gk_records_reading_changes) %> (<%= @events.size %>)</h3>
+<% if @events.any? %>
+<table class="list gk-records-events-table">
+  <thead><tr><th><%= l(:field_created_on) %></th><th><%= l(:label_gk_records_kind) %></th><th><%= l(:label_gk_records_target) %></th>
+    <th><%= l(:label_gk_records_changes) %></th></tr></thead>
+  <tbody>
+  <% @events.each do |e| %>
+    <tr>
+      <td class="created_on gk-records-when"><%= format_time(e.created_at) %></td>
+      <td class="kind"><%= gk_records_event_kind_tag(e.kind) %><%= gk_records_origin_badge(e.origin) %></td>
+      <td class="target"><%= gk_records_ref_link(e.target_type, e.target_id) %></td>
+      <td class="text"><% if (d = gk_records_details(e)).present? %><ul class="gk-records-diff"><%= d %></ul><% end %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% else %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+
+<%= gk_records_list(r) %>
+<% html_title GkRecords::Readings.label(r) %>

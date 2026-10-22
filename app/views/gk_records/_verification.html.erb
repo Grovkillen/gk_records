@@ -1,0 +1,28 @@
+<% v = GkRecords::Verification %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% st = v.get(obj) %>
+<% may = v.may_set?(obj) %>
+<% anchor = obj.is_a?(Issue) ? 'gk-records-verification' : "gk-records-verification-#{GkRecords::Targets.for_object(obj)&.key}-#{obj.id}" %>
+<%# what the status is for, on hover rather than as text in the row (records_1021-SID-11, 12); the review is named only
+    where a plugin reviews (signoff), never where it cannot be done %>
+<% help = l(v.reviewer ? :text_gk_records_verification_help_review : :text_gk_records_verification_help) %>
+<%# the tip on Ändra status only, not on the whole box (records_1021-SID-41); where nobody may change it, on the box %>
+<span class="gk-records-verification-box" id="<%= anchor %>"<% unless may %> title="<%= help %>"<% end %>>
+  <%= st ? gk_records_verification_badge(obj) : content_tag('span', l(:label_gk_records_verification_none), class: 'gk-records-meta') %>
+  <% if v.reviewer && v.reviewer[:partial] %>
+    <%= render partial: v.reviewer[:partial], locals: { obj: obj, back_url: back_url } %>
+  <% end %>
+  <% if may %>
+    <%# one tip, on the summary (records_1021-SID-33, 41) %>
+    <details class="gk-records-verification-edit"><summary title="<%= help %>"><%= l(:button_gk_records_verification_change) %></summary>
+      <%= form_tag gk_records_verification_path, class: 'gk-records-verification-form' do %>
+        <%= hidden_field_tag :target, GkRecords::Targets.ref(obj), id: nil %>
+        <%= hidden_field_tag :back_url, back_url, id: nil %>
+        <%= select_tag :status, options_for_select(v.manual_options + [[l(:label_gk_records_verification_none), v::NONE]], (st if v::MANUAL.include?(st))),
+                       prompt: l(:label_gk_records_verification_choose), required: true, id: nil, 'aria-label': v.title %>
+        <%= gk_records_reason_field(v::REASON, size: 30) %>
+        <%= submit_tag l(:button_save), name: nil %>
+      <% end %>
+    </details>
+  <% end %>
+</span>

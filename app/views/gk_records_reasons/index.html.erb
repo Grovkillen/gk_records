@@ -1,0 +1,69 @@
+<%# Administration > Skäl: the installation's mode, then every place per plugin with its default and mode; the places
+    the act or a rule decides last, without a choice. Every change takes a reason and is an event. %>
+<% r = GkRecords::Reasons %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records_reasons', plugin: 'gk_records' %>
+<% end %>
+<% mode_label = ->(m) { l("label_gk_records_reason_mode_#{m}") } %>
+<% mode_tag = ->(m, css = nil) { content_tag('span', mode_label.call(m), class: ["gk-records-reason-mode gk-records-reason-mode-#{m}", css].compact.join(' ')) } %>
+<h2><%= l(:label_gk_records_reasons) %></h2>
+<p class="info"><%= l(:text_gk_records_reasons) %>
+  <%# where every change shows (records_1021-SID-23): the event log, as a query when gk_queries is there %>
+  <% if GkRecords::Features.on?('events') %><%= link_to l(:label_gk_records_reasons_events), (defined?(GkQueries) ? { controller: 'gk_queries', action: 'show', list: 'records_events' } : gk_records_events_path) %><% end %></p>
+
+<fieldset class="box tabular" id="r-all"><legend><%= l(:label_gk_records_reasons_installation) %></legend>
+  <%= form_tag gk_records_reason_path(key: r::ALL), method: :patch, class: 'gk-records-reason-mode-form' do %>
+    <p><label for="gk-records-reason-all"><%= l(:field_gk_records_reason_mode) %></label>
+      <%= select_tag 'mode', options_for_select(([r::PLACES] + r::MODES).map { |m| [mode_label.call(m), m] }, r.installation_mode), id: 'gk-records-reason-all' %>
+      <em class="info"><%= l(:text_gk_records_reasons_installation) %></em></p>
+    <%# the label only where a reason is required: an optional one folds into the field's own link %>
+    <p><% if r.mode('records.reason_modes') == 'required' %><label for="gk-records-reason-all-why"><%= l(:label_gk_records_note_reason) %></label><% end %>
+      <%= gk_records_reason_field('records.reason_modes', id: 'gk-records-reason-all-why', size: 40) %>
+      <%= submit_tag l(:button_save), name: nil %></p>
+  <% end %>
+</fieldset>
+
+<% @places.each do |plugin, places| %>
+  <h3><%= places.first.plugin_name %></h3>
+  <table class="list gk-records-reasons">
+    <colgroup><col class="gk-records-c-place"><col class="gk-records-c-default"><col class="gk-records-c-now"><col class="gk-records-c-mode"></colgroup>
+    <thead><tr><th><%= l(:label_gk_records_reason_place) %></th><th><%= l(:label_gk_records_reason_default) %></th>
+      <th><%= l(:label_gk_records_reason_now) %></th><th><%= l(:field_gk_records_reason_mode) %></th></tr></thead>
+    <tbody>
+    <% places.sort_by(&:label).each do |p| %>
+      <% now = r.mode(p.key) %>
+      <tr id="r-<%= p.key.tr('.', '-') %>" class="<%= cycle('odd', 'even') %>">
+        <td class="name"><%= p.label %><% if p.admin %> <span class="gk-records-meta">(<%= l(:label_gk_records_reason_admin) %>)</span><% end %></td>
+        <td class="default_mode"><%= mode_tag.call(p.default) %><%= " (#{l(:text_gk_records_reason_min, count: p.min)})" if p.min %></td>
+        <td class="current_mode"><%= mode_tag.call(now, "badge #{{ 'required' => 'badge-status-closed', 'optional' => 'badge-status-open' }.fetch(now, 'badge-status-locked')}") %></td>
+        <td class="buttons">
+          <%= form_tag gk_records_reason_path(key: p.key), method: :patch, class: 'gk-records-reason-mode-form',
+                       data: { unchanged: l(:text_gk_records_reason_unchanged) } do %>
+            <%= select_tag 'mode', options_for_select(([r::INHERIT] + r::MODES).map { |m| [mode_label.call(m), m] }, r.own_mode(p.key)), id: nil,
+                           'aria-label': l(:field_gk_records_reason_mode) %>
+            <%= gk_records_reason_field('records.reason_modes', size: 18) %>
+            <%= submit_tag l(:button_save), name: nil %>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<% if @fixed.any? %>
+  <h3><%= l(:label_gk_records_reasons_fixed) %></h3>
+  <p class="info"><%= l(:text_gk_records_reasons_fixed) %></p>
+  <table class="list gk-records-reasons">
+    <thead><tr><th><%= l(:label_plugin) %></th><th><%= l(:label_gk_records_reason_place) %></th><th><%= l(:label_gk_records_reason_now) %></th></tr></thead>
+    <tbody>
+    <% @fixed.each do |_plugin, places| %>
+      <% places.sort_by(&:label).each do |p| %>
+        <tr class="<%= cycle('odd', 'even') %>"><td class="plugin"><%= p.plugin_name %></td><td class="name"><%= p.label %></td><td class="current_mode"><%= mode_tag.call(p.default) %></td></tr>
+      <% end %>
+    <% end %>
+    </tbody>
+  </table>
+<% end %>
+<% html_title l(:label_gk_records_reasons) %>

@@ -1,0 +1,10 @@
+<%# The Dokument tab: Läs in dokument beside core's Nytt dokument, for whoever may add documents %>
+<span id="gk-records-docimp-link"><%= link_to sprite_icon('import', l(:label_gk_records_docimp)), gk_records_document_import_path(project), class: 'icon icon-import' %></span>
+<%= javascript_tag(<<~JS)
+  (function () {
+    var link = document.getElementById('gk-records-docimp-link');
+    var bar = document.querySelector('#content > .contextual');
+    if (link && bar) bar.appendChild(link);
+  })();
+JS
+%>

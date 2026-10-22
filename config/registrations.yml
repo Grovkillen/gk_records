@@ -1,0 +1,45 @@
+# config/registrations.yml: vad pluginet lägger i de gemensamma lagren
+# (miljömanifestet 8.1). Tomma listor betyder ingenting där; nycklarna
+# får inte saknas. Fylls när pluginet byggs, ur manifestets Registreringar.
+permissions: []
+menu: []
+drawer: []
+notices: []
+banners: []
+waves: []
+surfaces: []
+color_roles: []
+records:
+  targets: []
+  note_kinds: []
+  event_kinds: []
+  link_kinds:
+    - {key: corrects, label: gk_records_link_corrects, directed: true, targets: [note]}
+    - {key: partial_duplicate, label: gk_records_link_partial_duplicate, directed: false, targets: [issue]}
+strings:
+  terms: []
+text_levels: []
+templates:
+  kinds: []
+scenario_steps: []
+jobs: []
+corners: []             # gui_stuff corner (hörnvik): {key, context, source, level}
+timeline: []            # planning tidsvyn: {key, kind: row_kind | span_source | point_source | count_source | decoration | side_panel | toolbar, label, condition, permission, renderer}
+queries: []             # queries-registret (kärnlager): {key, class, contexts: [global, project], default_columns, report}
+folds: []               # gui_stuff fold: {key, selector, threshold, label, memory: place | user | none}
+copies: []              # gui_stuff copy: {key, selector, format: text | link | markdown, label}
+view_states: []         # gui_stuff view_state: {key, context, values, default, label}; knappen i menyns Visa
+decorations: []         # gui_stuff decorate: {key, object_type, badge_source, where: [list, page, text]}
+content_transforms: []  # gui_stuff content: {key, selector, order, print: keep | strip}
+toolbar: []             # gui_stuff toolbar: {key, kind: insert | wrap | dialog, label, icon, target: [wiki, issue, note]}
+forms: []               # gui_stuff form: {key, schema, contexts}
+revisioned: []          # revisions release_flow: {model, policy_key (signoff), cmdb_binding: none | optional | always}
+locked: []              # gui_stuff locked (låst läge, suffix .locked): {context, keep: [delar som visas]}
+ribbons: []             # gui_stuff ribbon (hörnband): {key, context, word, line, target, priority}
+triggers: []            # triggers (kärnlager): färdiga utlösare pluginet levererar avstängda {key, label, event: {target, kind}, condition, actions, scope, enabled: false}
+trigger_actions: []     # triggers (kärnlager): åtgärder pluginet erbjuder {key, label, params, scope, mode: [job, sync], dry_run}
+gis_layers: []          # gis: lager pluginet visar {key, label, target, roles, color_role}
+gis_columns: []         # gis: egna geometrikolumner för massdata {table, column, srid, geometry_type, reason}
+disk_areas: []          # filområden på disk (6.2c): {key, path eller setting + default, kind: content | byproduct | backup}; <attachments>, <redmine>, <plugin> ersätts
+appearances: {}         # fields layouts: utseenden per fälttyp {<field_format>: [{key, name, defaults: [show, edit, small], text}]}
+access_items: []        # access: uppgifter som bär en nivå {key, label, plugin}

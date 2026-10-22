@@ -1,0 +1,6 @@
+<%# The page of assessments for one thing %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% html_title l(:label_gk_records_assessments), GkRecords::Targets.label(@target) %>
+<h2><%= l(:label_gk_records_assessments) %> &#187; <%= gk_records_ref_link(@target_def.key, @target.id) %></h2>
+<p class="gk-records-meta"><%= l(:text_gk_records_assessments_page) %></p>
+<%= render partial: 'gk_records_assessments/table', locals: { compact: false } %>

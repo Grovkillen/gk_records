@@ -1,0 +1,45 @@
+<%# The links of one thing, grouped by kind and direction (links_view). compact: the tab on an issue (no filters,
+    the way to the full page below); otherwise the page itself. %>
+<% ref = "#{@target_def.key}:#{@target.id}" %>
+<% groups = GkRecords::Links.groups(@links, @target_def.key, @target.id) %>
+<div class="gk-records-links-view">
+<%# The tab's add sits top right inside the tab, as core's add links do in a section %>
+<% if compact && @linkable %>
+  <div class="contextual gk-records-tab-add"><%= link_to sprite_icon('add', l(:label_gk_records_add_link)), gk_records_links_page_path(target: ref, anchor: 'gk-records-add'), class: 'icon icon-add', title: l(:text_gk_records_add_link_tab) %></div>
+<% end %>
+<% if groups.empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
+<% groups.each do |label, rows| %>
+  <h4 class="gk-records-group"><%= label %> <span class="gk-records-num">(<%= rows.count { |k| k.voided_at.nil? } %>)</span></h4>
+  <%# Void (the link's removal, kept as voided) in the row menu ("..." and a right click) when gui_stuff is there %>
+  <table class="list gk-records-links-table"<%= ' data-gk-gui-rowmenu'.html_safe if @linkable && !compact %>>
+    <tbody>
+    <% rows.each do |k| %>
+      <% okey, oid, _out = GkRecords::Links.other(k, @target_def.key, @target.id) %>
+      <tr class="<%= 'gk-records-voided' if k.voided_at %>">
+        <td class="type gk-records-thing"><span class="gk-records-kindtag gk-records-thing-kind gk-records-thing-kind-<%= okey %>"><%= GkRecords::Targets.thing_label(okey) %></span></td>
+        <td class="name gk-records-other"><%= gk_records_ref_link(okey, oid) %></td>
+        <td class="status gk-records-state"><%= gk_records_other_state(okey, oid) %></td>
+        <%# A citation's text is the place in the source, beside the link %>
+        <% locator = GkRecords::Kinds.find(:link, k.kind)&.citation && k.reason.present? %>
+        <td class="comments gk-records-why<%= ' gk-records-locator' if locator %>" title="<%= l(:label_gk_records_link_locator) if locator %>"><%= k.shown_reason %><%= gk_records_text_now(k.reason_now) %></td>
+        <td class="author gk-records-by-when"><%= gk_records_user(k.user, on: @target) %>
+          <span class="gk-records-when"><%= format_time(k.created_at) %></span><%= gk_records_origin_badge(k.origin) %></td>
+        <td class="buttons">
+          <% if k.voided_at %><span class="gk-records-meta"><%= l(:label_gk_records_event_voided) %> <%= format_time(k.voided_at) %></span>
+          <%# an icon with the word, as core's row actions (records_1021-SID-15) %>
+          <% elsif @linkable && !compact %><%= link_to sprite_icon('del', l(:button_gk_records_void)), gk_records_link_void_path(k, target: ref), method: :post,
+                                                        class: 'icon icon-del gk-records-action', title: l(:button_gk_records_void),
+                                                        data: { confirm: l(:text_gk_records_link_void_confirm), gk_gui_row_action: 'delete' } %><% end %>
+        </td>
+      </tr>
+    <% end %>
+    </tbody>
+  </table>
+<% end %>
+<%= gk_gui_stuff_row_menu if @linkable && !compact && groups.any? && respond_to?(:gk_gui_stuff_row_menu) %>
+<%# Lägg till koppling goes to the same page, so the link to it is only for a reader who may not add (records_1021-SID-55) %>
+<% if compact && !@linkable %>
+  <%# what the page is, on hover (records_1021-SID-14) %>
+  <p class="gk-records-open"><%= link_to l(:label_gk_records_open_as_page), gk_records_links_page_path(target: ref), title: l(:text_gk_records_open_as_page) %></p>
+<% end %>
+</div>

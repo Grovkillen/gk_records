@@ -1,0 +1,41 @@
+<%# The assessments of one thing, newest first. Each row holds the whole assessment: the values as they were, and
+    beside a value that differs from the assessment before it, what it was then. compact: the tab on an issue. %>
+<% ref = "#{@target_def.key}:#{@target.id}" %>
+<% verify = defined?(GkRecords::Verification) && GkRecords::Verification.feature? && GkRecords::Verification.ready? %>
+<div class="gk-records-assessments">
+<% if @assessments.empty? %><p class="nodata"><%= l(:label_no_data) %></p><% else %>
+<table class="list gk-records-assess-table">
+  <thead><tr>
+    <th><%= l(:label_gk_records_assessed_at) %></th><th><%= l(:label_gk_records_assessment) %></th><th><%= l(:label_gk_records_outcome) %></th>
+    <th><%= l(:label_gk_records_values) %></th><th><%= l(:label_gk_records_done_by) %></th>
+    <% if verify %><th><%= GkRecords::Verification.title %></th><% end %>
+  </tr></thead>
+  <tbody>
+  <% @assessments.each do |a| %>
+    <% was = a.changed_from_previous %>
+    <tr id="gk-records-assessment-<%= a.id %>">
+      <td class="assessed_at gk-records-when"><%= format_time(a.assessed_at) %></td>
+      <td class="name"><%= a.display_title %><%= gk_records_origin_badge(a.origin) %></td>
+      <td class="outcome gk-records-outcome"><strong><%= a.outcome %></strong></td>
+      <td class="text">
+        <ul class="gk-records-values">
+          <% a.values_list.each do |v| %>
+            <% label, shown = gk_records_assess_pair(v['key'], v['label'], v['value']) %>
+            <% before = was.key?(v['key']) ? gk_records_assess_pair(v['key'], v['label'], was[v['key']]).last : nil %>
+            <li><span class="gk-records-vlabel"><%= label %>:</span> <%= GkRecords::Ref.any?(shown) ? gk_records_value(shown, on: @target) : (shown.presence || '-') %><% if was.key?(v['key']) %>
+              <del title="<%= l(:text_gk_records_value_before) %>"><%= GkRecords::Ref.any?(before) ? gk_records_value(before, on: @target) : (before.presence || '-') %></del><% end %></li>
+          <% end %>
+        </ul>
+        <% if a.basis.present? %><div class="gk-records-basis"><span class="gk-records-vlabel"><%= l(:label_gk_records_basis) %>:</span> <%= a.basis %></div><% end %>
+      </td>
+      <td class="user"><%= gk_records_user(a.user, on: @target) %></td>
+      <% if verify %>
+        <td class="verification gk-records-verification-cell"><%= compact ? gk_records_verification_badge(a) : render(partial: 'gk_records/verification', locals: { obj: a, back_url: gk_records_assessments_page_path(target: ref, anchor: "gk-records-assessment-#{a.id}") }) %></td>
+      <% end %>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+<% end %>
+<% if compact %><p class="gk-records-open"><%= link_to l(:label_gk_records_open_as_page), gk_records_assessments_page_path(target: ref) %></p><% end %>
+</div>

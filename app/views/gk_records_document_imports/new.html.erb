@@ -1,0 +1,41 @@
+<%# Läs in dokument, step one: the zip with its document list, the template, and the person's zips kept from an earlier
+    upload that was neither run nor discarded %>
+<% html_title l(:label_gk_records_docimp) %>
+<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<h2><%= link_to l(:label_document_plural), project_documents_path(@project) %> &#187; <%= l(:label_gk_records_docimp) %></h2>
+<p class="info"><%= l(:text_gk_records_docimp_intro) %></p>
+
+<%# The template comes from the import's own fields, so it can never drift from what is read %>
+<fieldset class="box"><legend><%= l(:label_gk_records_docimp_list) %></legend>
+  <p><%= l(:text_gk_records_docimp_list) %>
+    <%= link_to sprite_icon('download', l(:button_gk_records_docimp_template)), gk_records_document_import_template_path, class: 'icon icon-download' %></p>
+  <table class="list gk-records-docimp-columns">
+    <thead><tr><th><%= l(:label_gk_records_docimp_column) %></th><th><%= l(:field_description) %></th></tr></thead>
+    <tbody>
+    <% GkRecords::DocumentImport::FIELDS.each do |f| %>
+      <tr><td class="name"><%= l("label_gk_records_docimp_field_#{f}") %><% if GkRecords::DocumentImport::REQUIRED.include?(f) %> <span class="required">*</span><% end %></td>
+        <td class="description"><%= l("text_gk_records_docimp_help_#{f}") %></td></tr>
+    <% end %>
+    </tbody>
+  </table>
+</fieldset>
+
+<% if @pending.any? %>
+<fieldset class="box"><legend><%= l(:label_gk_records_docimp_pending) %></legend>
+  <ul>
+  <% @pending.each do |att| %>
+    <li><%= link_to att.filename, gk_records_document_import_preview_path(@project, file: att.token) %>
+      <span class="gk-records-meta"><%= format_time(att.created_on) %>, <%= number_to_human_size(att.filesize) %></span></li>
+  <% end %>
+  </ul>
+</fieldset>
+<% end %>
+
+<%= form_tag(gk_records_document_import_path(@project), multipart: true) do %>
+<div class="box tabular">
+  <p><label for="gk_records_docimp_zip"><%= l(:label_gk_records_docimp_zip) %> <span class="required">*</span></label>
+    <%= file_field_tag 'zip', accept: '.zip,application/zip', id: 'gk_records_docimp_zip', required: true %>
+    <em class="info"><%= l(:text_gk_records_docimp_zip, max: number_to_human_size(GkRecords::DocumentImport.max_bytes)) %></em></p>
+</div>
+<p><%= submit_tag l(:button_gk_records_docimp_preview), name: nil %> <%= link_to l(:button_cancel), project_documents_path(@project) %></p>
+<% end %>
