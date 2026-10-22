@@ -85,16 +85,19 @@ module GkRecords
 
     # What holds now: a fixed place its own default; else the place's own mode, else the installation's, else the default.
     # A place nobody declared is optional (a forgotten declaration never refuses a save).
+    # The installation's Av, Valfritt or Krävs holds for every place and locks the places' own choices (the owner, human
+    # test records_1022-SID-01, "Installationen låser"); only with Varje ställes förval (PLACES) does a place's own mode
+    # count. A place's stored choice stays and holds again when the installation is set back to PLACES.
+    def locked? = MODES.include?(installation_mode)
+
     def mode(key)
       p = find(key)
       return 'optional' unless p
       return p.default if p.fixed
+      return installation_mode if locked?
 
       own = own_mode(p.key)
-      return own unless own == INHERIT
-
-      inst = installation_mode
-      inst == PLACES ? p.default : inst
+      own == INHERIT ? p.default : own
     end
 
     def off?(key) = mode(key) == 'off'

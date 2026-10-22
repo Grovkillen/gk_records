@@ -102,8 +102,9 @@ class GkRecordsEventQuery < Query
   def default_columns_names = [:created_at, :kind_label, :target_label, :user, :changes_text, :reason_text]
   def default_sort_criteria = [['created_at', 'desc']]
 
+  # 1.01.000: the log the reader may open, by the one rule (GkRecordsEvent.log_for), its order left to the query
   def base_scope
-    GkRecordsEvent.readable_by(User.current).where(statement)
+    (GkRecordsEvent.log_for(User.current)&.reorder(nil) || GkRecordsEvent.none).where(statement)
   end
 
   def results_scope(options = {})

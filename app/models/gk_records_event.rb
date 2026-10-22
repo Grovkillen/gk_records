@@ -36,6 +36,26 @@ class GkRecordsEvent < ApplicationRecord
     where(conds.join(' OR '))
   }
 
+  # The event log a reader may open (1.01.000), newest first, or nil when the reader may not open it at all:
+  # project: the project's tab (Se händelser in the project; its subprojects where they have it too, when core shows
+  # subprojects' issues); without a project the log under Administration: everything for an administrator, else the
+  # events of the projects where the reader has Se händelser, never those without a project. The page, its CSV and the
+  # scenario checks ask here, so they never differ.
+  def self.log_for(user, project: nil)
+    perm = :gk_records_view_events
+    scope = readable_by(user).includes(:user, :reason_note).order(created_at: :desc, id: :desc)
+    if project
+      return nil unless user.allowed_to?(perm, project)
+
+      base = Setting.display_subprojects_issues? ? project.self_and_descendants : Project.where(id: project.id)
+      return scope.where(project_id: Project.where(id: base.select(:id)).where(Project.allowed_to_condition(user, perm)).select(:id))
+    end
+    return scope if user.admin?
+
+    ids = Project.where(Project.allowed_to_condition(user, perm)).select(:id)
+    ids.exists? ? scope.where(project_id: ids) : nil
+  end
+
   def details_hash
     JSON.parse(details.presence || '{}')
   rescue JSON::ParserError

@@ -609,6 +609,41 @@ module GkRecords
         { 'ok' => got == want, 'want' => want.to_s, 'got' => got.to_s }
       end
 
+      # records_events_open (1.01.000): may the scenario's user in as open the event log of one of the scenario's projects
+      # (project:, the tab Händelser) or, without project:, the log under Administration (GkRecordsEvent.log_for);
+      # equals: true | false
+      ::GkScenarios::Expect.register('records_events_open') do |ctx, e|
+        viewer = e['records_events_open'] && ::User.find_by(login: ::GkScenarios::Expect.login(ctx, e['records_events_open']))
+        project = e['project'] && ::Project.where(id: ::GkScenarios::Expect.project_id(ctx, e['project'])).first
+        next({ 'ok' => false, 'want' => 'a user (and a project)', 'got' => '-' }) unless viewer && (project || !e['project'])
+
+        got = !::GkRecordsEvent.log_for(viewer, project: project).nil?
+        want = !e.key?('equals') || e['equals'].to_s == 'true'
+        { 'ok' => got == want, 'want' => want.to_s, 'got' => got.to_s }
+      end
+
+      # records_events_csv (1.01.000): the event log as the scenario's user in records_events_csv reads it (project:
+      # the tab, else the log under Administration) written as CSV: one row per event the user sees, a byte order mark,
+      # the time in ISO 8601 with the zone and the language's separator. at_least: the rows there must be at least.
+      ::GkScenarios::Expect.register('records_events_csv') do |ctx, e|
+        viewer = ::User.find_by(login: ::GkScenarios::Expect.login(ctx, e['records_events_csv']))
+        project = e['project'] && ::Project.where(id: ::GkScenarios::Expect.project_id(ctx, e['project'])).first
+        scope = viewer && ::GkRecordsEvent.log_for(viewer, project: project)
+        next({ 'ok' => false, 'want' => 'a user who may open the log', 'got' => viewer ? 'may not open it' : 'no user' }) unless scope
+
+        events = scope.limit(::Setting.issues_export_limit.to_i).to_a
+        text = nil
+        ctx.as(viewer) { text = EventsCsv.generate(events, viewer) }
+        sep = ::I18n.t(:general_csv_separator, default: ',')
+        rows = ::CSV.parse(text.delete_prefix(EventsCsv::BOM), col_sep: sep)
+        checks = []
+        checks << 'bom' unless text.start_with?(EventsCsv::BOM)
+        checks << "rows #{rows.size - 1} != #{events.size}" unless rows.size - 1 == events.size
+        checks << "at_least #{e['at_least']}" if e['at_least'] && events.size < e['at_least'].to_i
+        checks << 'iso time' if events.any? && rows[1][0] !~ /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}\z/
+        { 'ok' => checks.empty?, 'want' => "#{events.size} rows, BOM, ISO time, separator #{sep.inspect}", 'got' => checks.empty? ? 'ok' : checks.join(', ') }
+      end
+
       # records_detail_shown: does the name of the scenario's user in person stand in the details of the latest event
       # of a kind (on one of the scenario's objects when target is given) as shown to the scenario's user in as. The
       # details are read as the event log shows them, so a name written in plain text by an older writer counts as
@@ -743,8 +778,8 @@ module GkRecords
       # records_reason_modes: the reasons' modes on one place (the value is the place's key, such as records.note_void),
       # as the scenario's user (by:, who must be an administrator): off keeps no reason even when one is sent; optional
       # keeps what is written and nothing when empty; required refuses empty, and a suggestion (the person's latest
-      # reason) that was not chosen counts as empty; the installation's mode holds for a place that follows it and the
-      # place's own mode before it; a change from required to off is an event that says so; a #123 in the reason becomes
+      # reason) that was not chosen counts as empty; the installation's Av, Valfritt or Krävs locks every place, and a
+      # place's own mode counts only with Varje ställes förval; a change from required to off is an event that says so; a #123 in the reason becomes
       # a link from the reason to the issue. All in a transaction that is rolled back, so the instance's modes and
       # history stay as they were.
       ::GkScenarios::Expect.register('records_reason_modes') do |ctx, e|
@@ -765,6 +800,8 @@ module GkRecords
           ::GkRecordsEvent.transaction(requires_new: true) do
             checks = []
             ctx.as(actor) do
+              # the place's own modes count only while the installation is on Varje ställes förval (PLACES)
+              r.set_mode!(r::ALL, r::PLACES, reason: 'scenario')
               r.set_mode!(key, 'off', reason: 'scenario')
               c = r.check(key, 'skickat ändå')
               checks << ['off keeps nothing', c.ok && c.text.nil?]
@@ -773,10 +810,13 @@ module GkRecords
               c2 = r.check(key, ' ett skäl ')
               checks << ['optional', c1.ok && c1.text.nil? && c2.ok && c2.text == 'ett skäl']
               r.set_mode!(key, 'inherit', reason: 'scenario')
-              r.set_mode!(r::ALL, 'required', reason: 'scenario')
-              checks << ['installation holds', r.mode(key) == 'required']
+              checks << ['inherit is the default', r.mode(key) == place.default]
+              # records_1022-SID-01: the installation's mode locks the places, also one with its own mode
               r.set_mode!(key, 'optional', reason: 'scenario')
-              checks << ['place before installation', r.mode(key) == 'optional']
+              r.set_mode!(r::ALL, 'required', reason: 'scenario')
+              checks << ['installation locks', r.mode(key) == 'required' && r.locked?]
+              r.set_mode!(r::ALL, r::PLACES, reason: 'scenario')
+              checks << ['own mode again', r.mode(key) == 'optional' && !r.locked?]
               r.set_mode!(key, 'required', reason: 'scenario')
               checks << ['required refuses empty', !r.check(key, '  ').ok]
               last_id = ::GkRecordsEvent.maximum(:id).to_i

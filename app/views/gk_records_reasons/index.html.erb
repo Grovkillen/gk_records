@@ -38,12 +38,22 @@
         <td class="default_mode"><%= mode_tag.call(p.default) %><%= " (#{l(:text_gk_records_reason_min, count: p.min)})" if p.min %></td>
         <td class="current_mode"><%= mode_tag.call(now, "badge #{{ 'required' => 'badge-status-closed', 'optional' => 'badge-status-open' }.fetch(now, 'badge-status-locked')}") %></td>
         <td class="buttons">
+          <%# the installation's Av, Valfritt or Krävs locks the places; the place's own choice shows, greyed (records_1022-SID-01) %>
+          <% if r.locked? %>
+            <%# the same row as the form, so it stands at the start as the form does (records_1022-SID-02) %>
+            <div class="gk-records-reason-locked">
+              <%= select_tag 'mode', options_for_select(([r::INHERIT] + r::MODES).map { |m| [mode_label.call(m), m] }, r.own_mode(p.key)), id: nil,
+                             disabled: true, 'aria-label': l(:field_gk_records_reason_mode) %>
+              <em class="info"><%= l(:text_gk_records_reason_locked) %></em>
+            </div>
+          <% else %>
           <%= form_tag gk_records_reason_path(key: p.key), method: :patch, class: 'gk-records-reason-mode-form',
                        data: { unchanged: l(:text_gk_records_reason_unchanged) } do %>
             <%= select_tag 'mode', options_for_select(([r::INHERIT] + r::MODES).map { |m| [mode_label.call(m), m] }, r.own_mode(p.key)), id: nil,
                            'aria-label': l(:field_gk_records_reason_mode) %>
             <%= gk_records_reason_field('records.reason_modes', size: 18) %>
             <%= submit_tag l(:button_save), name: nil %>
+          <% end %>
           <% end %>
         </td>
       </tr>

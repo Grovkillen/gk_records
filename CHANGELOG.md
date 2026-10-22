@@ -2,6 +2,29 @@
 
 All notable changes to GK Records are documented in this file.
 
+## 1.01.000 (2026-10-22)
+
+### Fixed
+
+* Reasons: a place set by the whole installation shows its greyed choice and the note at the start of the column, as the places that can be changed do, instead of at the right.
+
+## 1.01.000-rc2 (2026-10-22)
+
+### Changed
+
+* Reasons: when the whole installation is set to Off, Optional or Required, that mode holds for every place and the places cannot be changed one by one; their own choices show greyed with "Set by the whole installation". Only with Each place's default is the mode chosen per place. A place's own choice is kept and holds again when the installation is set back to Each place's default.
+
+## 1.01.000-rc1 (2026-10-22)
+
+### Added
+
+* Events can be exported as CSV, from the event log page (with its filters) and from the list in GK Queries: the time in ISO 8601 with the zone, numbers with a point as the decimal sign, the language's column separator, UTF-8 with a byte order mark. Only what the reader may see is in the file; a hidden person is written as "(hidden)". The file is named by GK Revisions' rule when it is installed.
+* A project module Events: a tab in the project with the project's events (and its subprojects' when Redmine shows subprojects' issues), for whoever has View events in the project.
+
+### Changed
+
+* View events is a permission per project in the module Events, instead of one for the whole installation. The event log under Administration shows a person who is not an administrator the events of the projects where the person has it; events without a project (settings, people) are shown to administrators only. On upgrade, the module is turned on in every active project where a member has a role with the permission (and in public projects when Non member or Anonymous has it), so no one loses a project's events.
+
 ## 1.00.000 (2026-10-22)
 
 * First release.

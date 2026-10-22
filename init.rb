@@ -20,12 +20,13 @@ require_relative 'extensions/gk_records/settings_history'
 require_relative 'extensions/gk_records/issue_links'
 require_relative 'extensions/gk_records/readings'
 require_relative 'extensions/gk_records/document_import'
+require_relative 'extensions/gk_records/events_csv'
 
 Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.00.000'
+  version     '1.01.000'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the
@@ -34,8 +35,15 @@ Redmine::Plugin.register :gk_records do
                     'verification_tracker_ids' => [], 'features' => {}, 'tab_counts' => '0' },
            partial: 'settings/gk_records_settings'
 
-  # The whole event log (audit); a target's own events follow who may see the target
-  permission :gk_records_view_events, { gk_records_events: [:index] }, require: :loggedin, global: true
+  # The project module Händelser (1.01.000): Se händelser per project, the project's tab and, under Administration,
+  # the events of the projects where the reader has it. Administrators see everything, the events without a project
+  # only they. A target's own events follow who may see the target, as before.
+  project_module :gk_records_events do
+    permission :gk_records_view_events, { gk_records_events: [:index] }, require: :loggedin, read: true
+  end
+  menu :project_menu, :gk_records_events, { controller: 'gk_records_events', action: 'index' },
+       caption: :label_gk_records_events, param: :project_id, after: :activity,
+       if: ->(_p) { GkRecords::Features.on?('events') }
 
   # The event log is a query (T-QUERY): with gk_queries it lists there, otherwise the plugin's own page; a function that
   # is off has no menu row (GkRecords::Features)
@@ -90,8 +98,10 @@ ApplicationController.helper(GkRecordsHelper) unless ApplicationController._help
 
 # The event log as a registered query when gk_queries is there (it loads first, alphabetically)
 if defined?(GkQueries)
+  # the CSV is records' own (1.01.000), the same as from the page; csv: is read by gk_queries that has it
+  csv_opt = GkQueries::Entry.members.include?(:csv) ? { csv: ->(rows, _query) { GkRecords::EventsCsv.generate(rows) } } : {}
   GkQueries::Registry.register('records_events', klass: 'GkRecordsEventQuery', plugin: :gk_records, label: :label_gk_records_events,
-                                                  visible: ->(user) { user.admin? })
+                                                  visible: ->(user) { user.admin? }, **csv_opt)
 end
 # The note kinds beyond kommentar and skäl are a declared function, off for a new installation; gui_stuff loads after
 # records
@@ -111,6 +121,8 @@ Rails.configuration.after_initialize do
   end
   # The document list's template is named by revisions' one rule (revisions loads after records)
   GkRecords::DocumentImport.declare_names!
+  # and so is the event log's CSV
+  GkRecords::EventsCsv.declare_names!
   # The identities point at things, people among them (a user, a register person)
   if defined?(::GkPeople::Processing)
     ::GkPeople::Processing.declare(:gk_records_identities, category: 'records', plugin: :gk_records)

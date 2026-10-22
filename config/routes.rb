@@ -29,6 +29,9 @@ scope 'gk_records' do
                          defaults: { format: 'json' }
 end
 
+# A project's events (the project module Händelser, 1.01.000)
+get 'projects/:project_id/gk_records_events', to: 'gk_records_events#index', as: 'project_gk_records_events'
+
 # Läs in dokument, per project (the Dokument tab links here)
 get  'projects/:project_id/document_import', to: 'gk_records_document_imports#new', as: 'gk_records_document_import'
 post 'projects/:project_id/document_import', to: 'gk_records_document_imports#create'

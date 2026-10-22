@@ -29,6 +29,8 @@ class GkRecordsReasonsController < ApplicationController
     r = GkRecords::Reasons
     key = params[:key].to_s
     return render_404 unless key == r::ALL || (r.find(key) && !r.find(key).fixed)
+    # the installation's Av, Valfritt or Krävs locks the places (records_1022-SID-01)
+    return fail_with(l(:error_gk_records_reason_locked), key) if key != r::ALL && r.locked?
 
     check = r.check('records.reason_modes', params[:reason])
     return fail_with(check.error, key) unless check.ok

@@ -103,6 +103,9 @@ table.gk-records-reasons col.gk-records-c-default { inline-size: 12%; }
 table.gk-records-reasons col.gk-records-c-now { inline-size: 10%; }
 table.gk-records-reasons col.gk-records-c-mode { inline-size: 44%; }
 table.gk-records-reasons td.buttons form { display: flex; gap: 0.4em; align-items: center; justify-content: flex-start; }
+/* a place locked by the whole installation: the greyed choice and its note in the same row, at the start (records_1022-SID-02) */
+table.gk-records-reasons td.buttons .gk-records-reason-locked { display: flex; gap: 0.6em; align-items: center; justify-content: flex-start; }
+table.gk-records-reasons td.buttons .gk-records-reason-locked em.info { display: inline; margin: 0; }
 /* Save on a row is dimmed and off until the row's mode is changed (SID-16); the title says why */
 .gk-records-reason-mode-form input[type=submit]:disabled { opacity: 0.45; cursor: default; }
 /* human test records_1021: the headings stand as their cells do (SID-05, 20, 22, 27); core centres th and most td */
