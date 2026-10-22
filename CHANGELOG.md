@@ -2,19 +2,13 @@
 
 All notable changes to GK Records are documented in this file.
 
-## 1.01.000 (2026-10-22)
+## 1.01.001 (2026-10-22)
 
 ### Fixed
 
-* Reasons: a place set by the whole installation shows its greyed choice and the note at the start of the column, as the places that can be changed do, instead of at the right.
+* The change log: the entry for 1.01.000 is one entry with everything that version brought. As released, it listed the release candidates 1.01.000-rc1 and 1.01.000-rc2 under headings of their own, and under 1.01.000 only a fix made between the candidates. No code has changed since 1.01.000.
 
-## 1.01.000-rc2 (2026-10-22)
-
-### Changed
-
-* Reasons: when the whole installation is set to Off, Optional or Required, that mode holds for every place and the places cannot be changed one by one; their own choices show greyed with "Set by the whole installation". Only with Each place's default is the mode chosen per place. A place's own choice is kept and holds again when the installation is set back to Each place's default.
-
-## 1.01.000-rc1 (2026-10-22)
+## 1.01.000 (2026-10-22)
 
 ### Added
 
@@ -24,6 +18,7 @@ All notable changes to GK Records are documented in this file.
 ### Changed
 
 * View events is a permission per project in the module Events, instead of one for the whole installation. The event log under Administration shows a person who is not an administrator the events of the projects where the person has it; events without a project (settings, people) are shown to administrators only. On upgrade, the module is turned on in every active project where a member has a role with the permission (and in public projects when Non member or Anonymous has it), so no one loses a project's events.
+* Reasons: when the whole installation is set to Off, Optional or Required, that mode holds for every place and the places cannot be changed one by one; their own choices show greyed with "Set by the whole installation". Only with Each place's default is the mode chosen per place. A place's own choice is kept and holds again when the installation is set back to Each place's default.
 
 ## 1.00.000 (2026-10-22)
 

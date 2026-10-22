@@ -26,7 +26,7 @@ Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.01.000'
+  version     '1.01.001'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the

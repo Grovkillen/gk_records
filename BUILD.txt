@@ -1,8 +1,8 @@
 Package: gk_records
-Version: 1.01.000
+Version: 1.01.001
 
-Build tag: 1xJxpJ
-Build time (UTC): 2026-10-22 18:47:53
+Build tag: 1xJyPi
+Build time (UTC): 2026-10-22 19:25:32
 Git: git version 2.56.0.windows.1
 PowerShell: 7.6.6
 Redmine 6.0 runs on Ruby: 3.2
