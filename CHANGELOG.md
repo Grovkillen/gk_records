@@ -2,6 +2,16 @@
 
 All notable changes to GK Records are documented in this file.
 
+## 1.02.000 (2026-10-24)
+
+### Added
+
+* One reader of the GK plugins' `config/registrations.yml`: a plugin asks for its own file, a layer for one section across every installed plugin, and a plugin's check at start writes to the log the texts its file names that no language has. A file is read again only when it has changed.
+
+### Changed
+
+* An issue without links no longer shows the tab Links. One who may link gets Add link in the issue's actions menu, which opens the issue with the tab, where the first link is made.
+
 ## 1.01.001 (2026-10-22)
 
 ### Fixed

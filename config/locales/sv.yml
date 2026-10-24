@@ -12,6 +12,7 @@ sv:
   label_gk_records_events: "Händelser"
   label_gk_records_notes: "Noter"
   label_gk_records_links: "Kopplingar"
+  button_gk_records_link_add: "Lägg till koppling"
   label_gk_records_note: "Not"
   label_gk_records_note_comment: "Kommentar"
   label_gk_records_note_reason: "Skäl"

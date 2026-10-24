@@ -21,12 +21,13 @@ require_relative 'extensions/gk_records/issue_links'
 require_relative 'extensions/gk_records/readings'
 require_relative 'extensions/gk_records/document_import'
 require_relative 'extensions/gk_records/events_csv'
+require_relative 'extensions/gk_records/registrations'
 
 Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.01.001'
+  version     '1.02.000'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the

@@ -12,6 +12,7 @@ en:
   label_gk_records_events: "Events"
   label_gk_records_notes: "Notes"
   label_gk_records_links: "Links"
+  button_gk_records_link_add: "Add link"
   label_gk_records_note: "Note"
   label_gk_records_note_comment: "Comment"
   label_gk_records_note_reason: "Reason"

@@ -27,6 +27,7 @@ Other features:
 - A global id (UUID version 7) for every registered thing, with origin and owner instance, resolvable as JSON at `/gk_records/identities/<gid>.json` for readers who may see the thing.
 - Texts the system writes (not a person) are shown in the reader's language as they stood when written.
 - Records never shows the name of a person the reader may not see by Redmine's own visibility rule; such a person is shown with a neutral text. Optionally, a small mark shows on people that some other active user may not see.
+- One reader of the GK plugins' `config/registrations.yml` (what each plugin puts in the shared layers): a plugin asks for its own file, a layer for its section across every installed plugin, and a plugin's check at start lists the texts its file names that no language has.
 
 ## Requirements
 

@@ -30,8 +30,11 @@ module GkRecords
         tabs = super
         issue = @issue
         return tabs unless issue && ::GkRecords::Targets.find('issue') && ::GkRecords::Targets.visible?(issue)
-        # a tab only while its function is on (records_1021; GkRecords::Features)
-        links = ::GkRecords::Features.on?('links') && (::GkRecordsLink.active.touching('issue', issue.id).exists? || ::GkRecords::Targets.linkable?(issue))
+        # a tab only while its function is on (records_1021; GkRecords::Features), and only when the issue has links: an
+        # issue without one gets the row Lägg till koppling in the issue's actions menu (IssueHooks), which opens the
+        # issue with the tab selected, and the tab is there then for one who may link (gui_stuff_1023-SID-41)
+        links = ::GkRecords::Features.on?('links') &&
+                (::GkRecordsLink.active.touching('issue', issue.id).exists? || (params[:tab].to_s == TAB && ::GkRecords::Targets.linkable?(issue)))
         assessed = ::GkRecords::Features.on?('assessments') && ::GkRecordsAssessment.for_target('issue', issue.id).exists?
         return tabs unless links || assessed
 
@@ -59,7 +62,34 @@ module GkRecords
   class IssueHooks < Redmine::Hook::ViewListener
     def view_issues_show_description_bottom(context = {})
       issue = context[:issue]
-      return '' unless issue && IssueLinks.tab_counts? && Targets.find('issue') && Targets.visible?(issue)
+      return '' unless issue && Targets.find('issue') && Targets.visible?(issue)
+
+      safe_join([add_link_row(issue), tab_counts(issue)].compact)
+    end
+
+    # An issue without links has no tab Kopplingar; one who may link gets the row Lägg till koppling in the issue's
+    # actions menu (core's actions_dropdown in .contextual, which has no hook), and it opens the issue with the tab
+    def add_link_row(issue)
+      return nil unless ::GkRecords::Features.on?('links') && Targets.linkable?(issue)
+      return nil if ::GkRecordsLink.active.touching('issue', issue.id).exists?
+
+      row = link_to(sprite_icon('link', l(:button_gk_records_link_add)), issue_path(issue, tab: IssueLinks::TAB),
+                    class: 'icon icon-link gk-records-link-add')
+      javascript_tag(<<~JS)
+        (function () {
+          var row = #{row.to_json};
+          var put = function () {
+            document.querySelectorAll('#content > .contextual .drdn-items').forEach(function (items) {
+              if (!items.querySelector('.gk-records-link-add')) items.insertAdjacentHTML('afterbegin', row);
+            });
+          };
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', put); else put();
+        })();
+      JS
+    end
+
+    def tab_counts(issue)
+      return nil unless IssueLinks.tab_counts?
 
       counts = { IssueLinks::TAB => ::GkRecordsLink.active.touching('issue', issue.id).count,
                  IssueLinks::ASSESS_TAB => ::GkRecordsAssessment.for_target('issue', issue.id).count }
