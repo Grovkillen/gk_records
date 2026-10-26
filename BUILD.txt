@@ -1,10 +1,10 @@
 Package: gk_records
-Version: 1.02.000
+Version: 1.03.000
 
-Build tag: 1xKecm
-Build time (UTC): 2026-10-24 16:29:46
+Build tag: 1xLMXB
+Build time (UTC): 2026-10-26 15:22:55
 Git: git version 2.56.0.windows.1
-PowerShell: 7.6.6
+PowerShell: 7.6.9
 Redmine 6.0 runs on Ruby: 3.2
 Redmine 6.1 runs on Ruby: 3.3
 Redmine 7.0 runs on Ruby: 4.0 or 3.4

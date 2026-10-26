@@ -6,7 +6,9 @@
 class GkRecordsReasonsController < ApplicationController
   layout 'admin'
   self.main_menu = false
-  before_action :require_admin
+  # administrators only, as core's require_admin; an OAuth token also needs the read scope (the list) or the manage
+  # scope (a change)
+  before_action :require_admin_scope
   accept_api_auth :index, :update
 
   def index
@@ -45,6 +47,16 @@ class GkRecordsReasonsController < ApplicationController
   end
 
   private
+
+  def require_admin_scope
+    return false unless require_login
+
+    s = GkRecords::ApiScope
+    return true if s.admin_allows?(User.current, action_name == 'index' ? s::READ : s::MANAGE)
+
+    render_403
+    false
+  end
 
   def anchor(key) = key == GkRecords::Reasons::ALL ? 'r-all' : "r-#{key.tr('.', '-')}"
 

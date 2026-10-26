@@ -21,7 +21,8 @@ class GkRecordsEvent < ApplicationRecord
 
   # An event of a kind that asks a permission (Kinds.register_event permission:, an export or a print) is shown
   # only to those who have it in the event's project, or anywhere when the event has no project; every other kind
-  # as before. Administrators see all. Every list of events asks here.
+  # as before. Administrators see all. Every list of events asks here. The projects are asked with an OAuth token's
+  # scopes (GkRecords::ApiScope), as core's own checks do.
   scope :readable_by, lambda { |user = User.current|
     restricted = GkRecords::Kinds.of(:event).select(&:permission)
     next all if user.admin? || restricted.empty?
@@ -29,7 +30,7 @@ class GkRecordsEvent < ApplicationRecord
     t = table_name
     conds = [sanitize_sql_array(["#{t}.kind NOT IN (?)", restricted.map(&:key)])]
     restricted.group_by(&:permission).each do |perm, kinds|
-      projects = Project.where(Project.allowed_to_condition(user, perm)).select(:id).to_sql
+      projects = Project.where(GkRecords::ApiScope.project_condition(user, perm)).select(:id).to_sql
       global = user.allowed_to_globally?(perm) ? " OR #{t}.project_id IS NULL" : ''
       conds << sanitize_sql_array(["(#{t}.kind IN (?) AND (#{t}.project_id IN (#{projects})#{global}))", kinds.map(&:key)])
     end
@@ -48,11 +49,11 @@ class GkRecordsEvent < ApplicationRecord
       return nil unless user.allowed_to?(perm, project)
 
       base = Setting.display_subprojects_issues? ? project.self_and_descendants : Project.where(id: project.id)
-      return scope.where(project_id: Project.where(id: base.select(:id)).where(Project.allowed_to_condition(user, perm)).select(:id))
+      return scope.where(project_id: Project.where(id: base.select(:id)).where(GkRecords::ApiScope.project_condition(user, perm)).select(:id))
     end
     return scope if user.admin?
 
-    ids = Project.where(Project.allowed_to_condition(user, perm)).select(:id)
+    ids = Project.where(GkRecords::ApiScope.project_condition(user, perm)).select(:id)
     ids.exists? ? scope.where(project_id: ids) : nil
   end
 

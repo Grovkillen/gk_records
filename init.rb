@@ -9,6 +9,7 @@
 # gk_scenarios.
 
 require_relative 'extensions/gk_records/registry'
+require_relative 'extensions/gk_records/api_scope'
 require_relative 'extensions/gk_records/features'
 require_relative 'extensions/gk_records/system_text'
 require_relative 'extensions/gk_records/identity'
@@ -27,7 +28,7 @@ Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.02.000'
+  version     '1.03.000'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the
@@ -59,6 +60,12 @@ Redmine::Plugin.register :gk_records do
   menu :admin_menu, :gk_records_readings, { controller: 'gk_records_readings', action: 'index' },
        caption: :label_gk_records_readings, icon: 'import', html: { class: 'icon' }, after: :gk_records_events,
        if: ->(_p) { GkRecords::Features.on?('readings') }
+
+  # OAuth scopes for the REST API (GkRecords::ApiScope); a role grants nothing with them. A token reads the kinds, the
+  # readings list and the reasons only with the read scope and changes a reason mode only with the manage scope; the
+  # last three stay for administrators.
+  permission :gk_records_api_read, {}, require: :loggedin
+  permission :gk_records_api_manage, {}, require: :loggedin
 end
 
 # The plugin's own kinds (other plugins add theirs the same way); registered again after a reload

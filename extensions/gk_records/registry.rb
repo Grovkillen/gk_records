@@ -94,10 +94,25 @@ module GkRecords
       t = all[key.to_s] = Target.new(key: key.to_s, model: model.to_s, visible: visible, editable: editable, label: label, url: url,
                                      linkable: linkable, voided: voided)
       Identity.install(t.model) if defined?(Identity) && Identity.respond_to?(:install)
+      registered_from[key.to_s] = caller_locations(1, 1).first&.path.to_s
       t
     end
 
     def find(key) = all[key.to_s]
+
+    # Where each target was registered from (the file), so the settings page can say which plugin owns it
+    def registered_from = (@registered_from ||= {})
+
+    # The plugin that registered a target (a Redmine::Plugin), or nil when it is not found among the plugins. The
+    # file's folders are matched against the plugins' ids (a plugin's folder is named by its id), not against
+    # Plugin#directory, since a plugin may be linked in from elsewhere (a junction to a build) and the loaded file then
+    # has the other path.
+    def owner(key)
+      folders = registered_from[key.to_s].to_s.tr('\\', '/').downcase.split('/')
+      return nil if folders.empty?
+
+      Redmine::Plugin.all.detect { |p| folders.include?(p.id.to_s.downcase) }
+    end
 
     def for_object(obj)
       all.values.detect { |t| obj.class.name == t.model }
@@ -325,12 +340,13 @@ module GkRecords
     end
 
     # The state of the thing at the other end, { text:, closed: }: an issue's status and whether it is closed; nil for
-    # the rest and for an issue the reader may not see
+    # the rest and for an issue the reader may not see (Issue#visible? asks with an OAuth token's scopes, the
+    # Issue.visible list does not)
     def state(key, id, user = User.current)
       return nil unless key.to_s == 'issue'
 
-      i = ::Issue.visible(user).find_by(id: id)
-      i && { text: i.status.to_s, closed: i.closed? }
+      i = ::Issue.find_by(id: id)
+      i&.visible?(user) ? { text: i.status.to_s, closed: i.closed? } : nil
     end
 
     # What a thing cites, the links in force from it of the kinds registered with citation:, oldest first (the

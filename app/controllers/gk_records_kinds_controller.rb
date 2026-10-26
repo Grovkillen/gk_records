@@ -2,6 +2,8 @@
 
 class GkRecordsKindsController < GkRecordsBaseController
   accept_api_auth :index
+  # who may stays any signed-in person; an OAuth token needs the read scope
+  before_action -> { render_403 unless GkRecords::ApiScope.allows?(User.current, GkRecords::ApiScope::READ) }
 
   # Direction: a link kind is symmetric or directed (Kind has no direction of its own); person_fields: the detail fields
   # an event kind declared as holding people; targets and sources of a link kind (null: any thing) and private_fields of

@@ -147,8 +147,10 @@ module GkRecords
   end
 
   # The reason field on the settings pages, just after the Save of every form (info and choices above, the owner's convention),
-  # with a link to the settings' history. Core has no hook in those forms, so the field is placed by script. When the
-  # reason is optional only the link "Save with a reason" shows, which unfolds the field.
+  # with a link to the settings' history. Core has no hook in those forms, so the field is placed by script. The field
+  # is folded behind the link "Add a reason" (core's add icon), which only opens it; the form's Save saves, with the
+  # reason that is written. A required reason folds too and is unfolded with its hint when the form is sent without it. Open, the field and its buttons
+  # stand in one framed group; the buttons are core's submit buttons (core's look and hover) that never send the form.
   class SettingsHooks < Redmine::Hook::ViewListener
     def view_layouts_base_body_bottom(context = {})
       c = context[:controller]
@@ -162,11 +164,19 @@ module GkRecords
       latest = GkRecords::Reasons.suggest? ? GkRecords::Reasons.suggestions('records.settings')[:latest] : nil
       sug = latest ? ::I18n.t(:text_gk_records_reason_suggest, text: latest.truncate(60)) : nil
       hint = ::I18n.t(:text_gk_records_setting_reason)
+      view = context[:hook_caller]
+      icon = view.respond_to?(:sprite_icon) ? view.sprite_icon('add').to_s : ''
       # records' stylesheet with the field, which a settings page does not load otherwise: the buttons' height, the
-      # square × and what is hidden (records_1021-SID-59, 65)
+      # square ×, the group's frame and what is hidden
       stylesheet_link_tag('gk_records', plugin: 'gk_records') + javascript_tag(<<~JS)
         (function () {
-          var sug = #{sug.to_json}, latest = #{latest.to_json};
+          var sug = #{sug.to_json}, latest = #{latest.to_json}, need = #{SettingsHistory.reason_required?};
+          // a button of the field: core's submit button for core's look and hover; a click on it never sends the form
+          var button = function (text, css, fn) {
+            var b = document.createElement('button'); b.type = 'submit'; b.className = css; b.textContent = text;
+            b.addEventListener('click', function (e) { e.preventDefault(); fn(); });
+            return b;
+          };
           document.querySelectorAll('#content form').forEach(function (f) {
             if (f.id === 'sudo-form' || f.method.toLowerCase() !== 'post' || f.querySelector('[name=gk_records_reason]')) return;
             // just after the button that saves (the button first, the reason to its right): the reason is
@@ -174,88 +184,83 @@ module GkRecords
             var submit = f.querySelector('input[type=submit][name=commit]') || f.querySelector('input[type=submit]');
             var s = document.createElement('span');
             s.className = 'gk-records-setting-reason';
-            // the top of the reason stands in line with the button, and the field grows downwards, so Save stays put
-            s.style.cssText = 'display:inline-flex;align-items:flex-start;gap:6px;vertical-align:top;margin-inline-start:8px;';
-            var l = document.createElement('label'); l.textContent = #{label.to_json}; l.style.fontWeight = 'bold';
+            var l = document.createElement('label'); l.textContent = #{label.to_json};
             var t = document.createElement('textarea'); t.name = 'gk_records_reason'; t.rows = 3; t.cols = 50; t.title = #{hint.to_json};
-            t.required = #{SettingsHistory.reason_required?}; t.setAttribute('data-auto-complete', 'true');
-            t.placeholder = sug || #{hint.to_json}; t.id = 'gk_records_reason_' + Math.random().toString(36).slice(2, 8); l.htmlFor = t.id;
-            t.style.cssText = 'vertical-align:top;resize:vertical;';
-            // optional: folded behind the link "Save with a reason", which unfolds it and puts the cursor in it
-            var box = s;
-            if (!t.required) {
-              box = document.createElement('span'); box.hidden = true; box.id = t.id + '_box';
-              box.style.cssText = 'display:inline-flex;align-items:flex-start;gap:6px;';
-              var a = document.createElement('a'); a.href = '#'; a.setAttribute('role', 'button');
-              a.className = 'gk-records-setting-reason-unfold'; a.textContent = #{::I18n.t(:button_gk_records_reason_unfold).to_json};
-              a.setAttribute('aria-expanded', 'false'); a.setAttribute('aria-controls', box.id);
-              var open = function (e) {
-                e.preventDefault();
-                box.hidden = false; box.style.display = 'inline-flex'; a.setAttribute('aria-expanded', 'true'); a.hidden = true; holdF(); t.focus();
-              };
-              a.addEventListener('click', open);
-              a.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Spacebar') open(e); });
-              box.style.display = 'none';
-              s.appendChild(a); s.appendChild(box);
-            }
+            t.setAttribute('data-auto-complete', 'true');
+            // the browser's "Please fill in this field" in the page's language, plain again once something is written
+            t.addEventListener('invalid', function () { if (t.validity.valueMissing) t.setCustomValidity(#{::I18n.t(:error_gk_records_reason_required).to_json}); });
+            t.addEventListener('input', function () { t.setCustomValidity(''); });
+            t.placeholder = sug || #{::I18n.t(:text_gk_records_reason_write).to_json}; t.id = 'gk_records_reason_' + Math.random().toString(36).slice(2, 8); l.htmlFor = t.id;
+            // folded behind the link "Add a reason", which unfolds the field and puts the cursor in it; a folded field
+            // is not required to the browser (a hidden required field would stop the form without a word)
+            var box = document.createElement('span'); box.hidden = true; box.id = t.id + '_box'; box.className = 'gk-records-setting-reason-box';
+            var a = document.createElement('a'); a.href = '#'; a.setAttribute('role', 'button');
+            a.className = 'icon icon-add gk-records-setting-reason-unfold'; a.innerHTML = #{icon.to_json};
+            var al = document.createElement('span'); al.className = 'icon-label'; al.textContent = #{::I18n.t(:button_gk_records_reason_unfold).to_json};
+            a.appendChild(al);
+            a.setAttribute('aria-expanded', 'false'); a.setAttribute('aria-controls', box.id);
+            var tip = document.createElement('span'); tip.className = 'gk-records-meta gk-records-reason-hint'; tip.hidden = true;
+            // shown only for a required reason that is left empty; an optional one never stops the form
+            tip.textContent = #{::I18n.t(:text_gk_records_reason_commit_required).to_json};
+            var shown = function () { return !box.hidden; };
+            var unfold = function (quiet) {
+              box.hidden = false; t.required = need; a.setAttribute('aria-expanded', 'true'); a.hidden = true; sizeF(); if (!quiet) t.focus();
+            };
+            a.addEventListener('click', function (e) { e.preventDefault(); unfold(); });
+            a.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); unfold(); } });
+            s.appendChild(a); s.appendChild(box);
             box.appendChild(l); box.appendChild(t);
-            if (latest) {
-              var u = document.createElement('button'); u.type = 'button'; u.textContent = #{::I18n.t(:button_gk_records_reason_use).to_json}; u.title = latest;
-              u.addEventListener('click', function () { t.value = latest; t.focus(); });
-              box.appendChild(u);
-            }
-            // records_1021-SID-31, 38, the same on every page: Använd shows what was written as text with Ändra (the
-            // field kept, hidden, so it is sent), and the form is not sent while the field is open with a reason not used
+            if (latest) box.appendChild(button(#{::I18n.t(:button_gk_records_reason_use).to_json}, 'gk-records-reason-use', function () { t.value = latest; t.focus(); }));
+            // Use the reason shows what was written as text with Change (the field kept, hidden, so it is sent); the
+            // form's Save takes what is written in the same way and sends it
             var used = document.createElement('span'); used.className = 'gk-records-reason-used'; used.hidden = true;
             var usedText = document.createElement('span'); usedText.className = 'gk-records-reason-used-text';
-            var ch = document.createElement('button'); ch.type = 'button'; ch.className = 'gk-records-reason-change'; ch.textContent = #{::I18n.t(:button_gk_records_reason_change).to_json};
-            used.appendChild(usedText); used.appendChild(ch);
-            var cm = document.createElement('button'); cm.type = 'button'; cm.className = 'gk-records-reason-commit'; cm.textContent = #{::I18n.t(:button_gk_records_reason_commit).to_json};
-            var tip = document.createElement('span'); tip.className = 'gk-records-meta'; tip.hidden = true;
-            tip.textContent = t.required ? #{::I18n.t(:text_gk_records_reason_commit_required).to_json} : #{::I18n.t(:text_gk_records_reason_commit_first).to_json};
             var isUsed = false;
-            var setUsed = function (on) {
+            // quiet: Save took the reason as the form goes, so the cursor stays where it is
+            var setUsed = function (on, quiet) {
               isUsed = on; t.hidden = on; cm.hidden = on; used.hidden = !on; tip.hidden = true;
-              holdF();
-              if (on) { usedText.textContent = t.value.trim(); ch.focus(); } else t.focus();
+              sizeF();
+              if (on) usedText.textContent = t.value.trim();
+              if (quiet) return;
+              if (on) ch.focus(); else t.focus();
             };
-            // records_1021, third round ("Spara gråas tills Använd"): the form's Save is dimmed and off while the reason
-            // stands open and not used; only what this turned off is turned on again
-            var holdF = function () {
-              var shown = !box.hidden && box.style.display !== 'none';
-              var open = shown && !isUsed;
-              // the buttons as high as Save (records_1021-SID-59, 65)
+            var ch = button(#{::I18n.t(:button_gk_records_reason_change).to_json}, 'gk-records-reason-change', function () { setUsed(false); });
+            used.appendChild(usedText); used.appendChild(ch);
+            var cm = button(#{::I18n.t(:button_gk_records_reason_commit).to_json}, 'gk-records-reason-commit', function () { if (t.value.trim()) setUsed(true); else t.focus(); });
+            // the buttons and the link as high as Save, so all stand on its line; Save itself is never turned off for
+            // the reason
+            var sizeF = function () {
               if (submit && submit.offsetHeight) s.style.setProperty('--gk-reason-btn', submit.offsetHeight + 'px');
-              f.querySelectorAll('input[type=submit], button[type=submit]').forEach(function (b) {
-                if (s.contains(b)) return;
-                if (open && !b.disabled) { b.disabled = true; b.setAttribute('data-gk-reason-hold', '1'); }
-                if (!open && b.hasAttribute('data-gk-reason-hold')) { b.disabled = false; b.removeAttribute('data-gk-reason-hold'); }
-              });
             };
-            cm.addEventListener('click', function () { if (t.value.trim()) setUsed(true); else t.focus(); });
-            ch.addEventListener('click', function () { setUsed(false); });
             box.appendChild(cm); box.appendChild(used);
-            // an optional reason that was unfolded folds back (emptied), so the save goes without a reason again
-            if (!t.required) {
-              var c = document.createElement('button'); c.type = 'button'; c.className = 'gk-records-reason-close'; c.textContent = '×';
-              c.title = #{::I18n.t(:button_gk_records_reason_close).to_json}; c.setAttribute('aria-label', c.title);
-              c.addEventListener('click', function () {
-                t.value = ''; isUsed = false; t.hidden = false; cm.hidden = false; used.hidden = true; tip.hidden = true;
-                box.hidden = true; box.style.display = 'none'; a.hidden = false; a.setAttribute('aria-expanded', 'false'); holdF(); a.focus();
-              });
-              box.appendChild(c);
-            }
+            // an unfolded reason folds back (emptied): an optional one then goes without a reason, a required one is
+            // asked for again when the form is sent
+            var c = button('×', 'gk-records-reason-close', function () {
+              t.value = ''; isUsed = false; t.hidden = false; t.required = false; cm.hidden = false; used.hidden = true; tip.hidden = true;
+              box.hidden = true; a.hidden = false; a.setAttribute('aria-expanded', 'false'); sizeF(); a.focus();
+            });
+            c.title = #{::I18n.t(:button_gk_records_reason_close).to_json}; c.setAttribute('aria-label', c.title);
+            box.appendChild(c);
             box.appendChild(tip);
+            // Save sends what is written (taken as Use the reason takes it); an empty optional reason goes without one,
+            // an empty required one stops the form with the hint (a folded one is unfolded first)
             f.addEventListener('submit', function (e) {
-              var shown = !box.hidden && box.style.display !== 'none';
-              if (isUsed || !shown || !(t.required || t.value.trim())) return;
+              if (isUsed) return;
+              if (!shown()) {
+                if (!need) return;
+                unfold(true);
+              } else if (t.value.trim()) {
+                setUsed(true, true);
+                return;
+              } else if (!need) return;
               e.preventDefault(); tip.hidden = false; t.focus();
             }, true);
+            t.addEventListener('input', function () { if (t.value.trim()) tip.hidden = true; });
             if (submit) {
               submit.parentNode.insertBefore(s, submit.nextSibling);
               submit.parentNode.insertBefore(document.createTextNode(' '), s);
             } else f.appendChild(s);
-            holdF();
+            sizeF();
           });
         })();
       JS

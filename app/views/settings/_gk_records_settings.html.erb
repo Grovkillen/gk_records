@@ -50,17 +50,54 @@
 <%= hidden_field_tag 'settings[verification_tracker_ids][]', '', id: nil %>
 <% v.tracker_ids.each do |id| %><%= hidden_field_tag 'settings[verification_tracker_ids][]', id, id: nil %><% end %>
 </fieldset>
-<fieldset class="box tabular"><legend><%= l(:label_gk_records_settings_registered) %></legend>
-<%# The assessment kinds that are data (GkRecords::AssessmentKinds), carried unchanged by this form %>
+<%# The assessment kinds that are data (GkRecords::AssessmentKinds), carried unchanged by this form; their box only when
+    there are some %>
 <%= hidden_field_tag 'settings[assessment_kinds]', settings['assessment_kinds'].to_s, id: nil %>
 <% data_kinds = GkRecords::AssessmentKinds.all %>
 <% if data_kinds.any? %>
+<fieldset class="box tabular"><legend><%= l(:label_gk_records_assessment_kinds_data) %></legend>
 <p><label><%= l(:label_gk_records_assessment_kinds_data) %></label>
   <span><%= safe_join(data_kinds.map { |k| k.scale.present? ? "#{k.label} (#{k.scale.map { |v| k.scale_label(v['key']) }.join(', ')})" : k.label }, '; ') %></span>
   <em class="info"><%= l(:text_gk_records_assessment_kinds_data) %></em></p>
+</fieldset>
 <% end %>
-<p><label><%= l(:label_gk_records_registered) %></label>
-  <span><%= safe_join(GkRecords::Targets.all.values.map { |t| content_tag('code', t.key) }, ' ') %></span></p>
+<%# The registered targets as core's list: one row per sort of thing, who registered it and which event and link kinds
+    may be used on it, so that what is a target is seen at once (icons_1025-SID-24) %>
+<%# The cells give the number of kinds, their names in the tooltip; the link kinds that go on every target are named
+    once under the list instead of on every row %>
+<% kinds = GkRecords::Kinds.all.values %>
+<% link_kinds = kinds.select { |k| k.scope.to_s == 'link' } %>
+<% everywhere = link_kinds.select { |k| k.targets.nil? && k.sources.nil? } %>
+<fieldset class="box"><legend><%= l(:label_gk_records_registered) %></legend>
+<p class="info"><%= l(:text_gk_records_registered) %></p>
+<div class="autoscroll">
+<table class="list gk-records-targets">
+  <thead><tr>
+    <th><%= l(:field_gk_records_target_thing) %></th>
+    <th><%= l(:field_gk_records_target_key) %></th>
+    <th><%= l(:field_gk_records_target_plugin) %></th>
+    <th><%= l(:field_gk_records_target_events) %></th>
+    <th><%= l(:field_gk_records_target_links) %></th>
+  </tr></thead>
+  <tbody>
+  <% GkRecords::Targets.all.values.sort_by { |t| GkRecords::Targets.thing_label(t.key).to_s.downcase }.each do |t| %>
+    <% events = kinds.select { |k| k.scope.to_s == 'event' && k.target.to_s == t.key }.map(&:label).sort %>
+    <% links = (link_kinds - everywhere).select { |k| k.offered_on?(t.key) || k.allows?(t.key) }.map(&:label).sort %>
+    <% owner = GkRecords::Targets.owner(t.key) %>
+    <tr>
+      <td class="name"><%= GkRecords::Targets.thing_label(t.key) %></td>
+      <td class="key"><code><%= t.key %></code></td>
+      <td class="plugin"><%= owner ? owner.name : '-' %></td>
+      <td class="events"><%= events.any? ? content_tag('span', events.size, title: events.join(', ')) : '-' %></td>
+      <td class="links"><%= links.any? ? content_tag('span', links.size, title: links.join(', ')) : '-' %></td>
+    </tr>
+  <% end %>
+  </tbody>
+</table>
+</div>
+<% if everywhere.any? %>
+<p class="info"><%= l(:text_gk_records_registered_links_everywhere, kinds: everywhere.map(&:label).sort.join(', ')) %></p>
+<% end %>
 </fieldset>
 <% if changelog %>
 <fieldset class="box"><legend><%= l(:label_gk_records_changelog) %></legend>

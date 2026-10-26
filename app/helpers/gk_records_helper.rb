@@ -382,16 +382,21 @@ module GkRecordsHelper
   end
   # The shared reason field every place draws in place of its own. Nothing when the place is off; required (and a least
   # length) when it is required. The person's latest reason for the place is a greyed suggestion that counts only when
-  # chosen (Använd, or a choice in the list); earlier reasons come as a list on the field, or as buttons under it
+  # chosen (Use the suggestion, or a choice in the list); earlier reasons come as a list on the field, or as buttons under it
   # (chips: true). require: true or false overrides the mode for a fixed place whose owner decides (a rule in
   # workflow_rules). The server decides in any case (GkRecords::Reasons.check).
   # A # in the field opens core's search for issues: text searches, a number shows that issue, a click puts its number
   # in the reason.
-  # Optional by the place's mode (no require: given), the field is folded: only the link "Save with a reason" shows, and
-  # a click unfolds the field and puts the cursor in it. The script moves a folded field to just after the form's Save
-  # in the same row, so the button comes first. Without script the field simply shows where it is. A value (a form shown
-  # again after a refused save) shows the field unfolded. fold: false never folds; fold: true folds a field that is
-  # optional by require: false too. A required field always shows. The server decides as before either way.
+  # By the place's mode (no require: given), the field is folded: only the link "Add a reason" (core's add icon) shows,
+  # and a click unfolds the field and puts the cursor in it. The link only opens the field; the form's own Save saves.
+  # The script moves a folded field after the form's Save: in a table's cell beside it, in a form on its own line under
+  # the line with Save and Cancel, never between them. An optional reason stays folded; a required one stands open in a
+  # form and folds only in a table's row, except a text area: when the row is sent without it, the script unfolds the
+  # field, puts the cursor in it and shows the hint. Without script the field simply shows where it is. A value (a form shown again
+  # after a refused save) shows the field unfolded. fold: false never folds; fold: true also folds a field whose
+  # require: is given. The server decides as before either way.
+  # Open, the field and its buttons stand in one framed group, so the buttons plainly belong to the reason. The buttons
+  # are submit buttons so they get core's look and hover; the script keeps them from sending the form.
   # One reason per save: a page with several sections that each had their own Save and reason uses one form around
   # all the sections, calls this helper once for the form's place, beside the one Save at the bottom, and the
   # controller checks that one reason once (GkRecords::Reasons.check) for every change the save makes.
@@ -406,52 +411,74 @@ module GkRecordsHelper
     # records_1021-SID-30: no suggestions until a plugin gives a search field of the select2 kind (Reasons.suggest?)
     sug = r.suggest? ? r.suggestions(key) : { latest: nil, list: [] }
     list_id = sug[:list].any? ? "gk-records-rs-#{key.to_s.tr('.', '-')}-#{SecureRandom.hex(3)}" : nil
-    ph = sug[:latest] ? l(:text_gk_records_reason_suggest, text: truncate(sug[:latest], length: 60)) : (placeholder || l(need ? :text_gk_records_reason_write : :text_gk_records_reason_optional))
+    ph = sug[:latest] ? l(:text_gk_records_reason_suggest, text: truncate(sug[:latest], length: 60)) : (placeholder || l(:text_gk_records_reason_write))
     opts = { id: id, placeholder: ph, required: need ? true : nil, minlength: (need && place&.min ? place.min : nil), list: list_id,
              autocomplete: 'off', data: { gk_reason: key, gk_reason_suggest: sug[:latest], auto_complete: true } }.merge(html)
     field = area ? text_area_tag(name, value, opts.merge(rows: rows, cols: size)) : text_field_tag(name, value, opts.merge(size: size))
+    # the field's buttons: core's submit buttons (core's look and hover), without a name so nothing extra is sent
+    btn = ->(text, css, **o) { button_tag(text, { type: 'submit', name: nil, class: css }.merge(o)) }
     parts = [field]
-    if sug[:latest]
-      parts << ' ' << button_tag(l(:button_gk_records_reason_use), type: 'button', class: 'gk-records-reason-use', title: sug[:latest])
-    end
-    # records_1021-SID-31, 38: Använd takes what is written, closes the field and shows the reason as text with Ändra;
-    # the form is not sent while the field stands open with a reason not used (the script; the server decides anyway)
-    parts << ' ' << button_tag(l(:button_gk_records_reason_commit), type: 'button', class: 'gk-records-reason-commit')
+    parts << ' ' << btn.call(l(:button_gk_records_reason_use), 'gk-records-reason-use', title: sug[:latest]) if sug[:latest]
+    # Use the reason takes what is written, closes the field and shows the reason as text with Change, for the one who
+    # wants to see it so first; the form's Save takes what is written in the same way and sends it (the script; the
+    # server decides anyway)
+    parts << ' ' << btn.call(l(:button_gk_records_reason_commit), 'gk-records-reason-commit')
     parts << content_tag('span', safe_join([content_tag('span', '', class: 'gk-records-reason-used-text'), ' ',
-                                            button_tag(l(:button_gk_records_reason_change), type: 'button', class: 'gk-records-reason-change')]),
+                                            btn.call(l(:button_gk_records_reason_change), 'gk-records-reason-change')]),
                          class: 'gk-records-reason-used', hidden: true)
-    parts << content_tag('span', l(need ? :text_gk_records_reason_commit_required : :text_gk_records_reason_commit_first),
-                         class: 'gk-records-reason-hint gk-records-meta', hidden: true)
+    # the hint a required reason gets when the form is sent without it; an optional one never stops the form
+    parts << content_tag('span', l(:text_gk_records_reason_commit_required), class: 'gk-records-reason-hint gk-records-meta', hidden: true) if need
     parts << content_tag('datalist', safe_join(sug[:list].map { |t| content_tag('option', '', value: t) }), id: list_id) if list_id
     if chips && sug[:list].any?
-      parts << content_tag('span', safe_join(sug[:list].map { |t| button_tag(truncate(t, length: 50), type: 'button', class: 'gk-records-reason-chip', title: t, data: { reason: t }) }, ' '),
+      parts << content_tag('span', safe_join(sug[:list].map { |t| btn.call(truncate(t, length: 50), 'gk-records-reason-chip', title: t, data: { reason: t }) }, ' '),
                            class: 'gk-records-reason-chips')
     end
-    folded = !need && value.blank? && (fold.nil? ? require.nil? : fold)
-    return content_tag('span', safe_join(parts), class: 'gk-records-reason-wrap') + gk_records_reason_script unless folded
+    folded = value.blank? && (fold.nil? ? require.nil? && !(need && area) : fold)
+    return content_tag('span', safe_join(parts), class: 'gk-records-reason-wrap gk-records-reason-group') + gk_records_reason_script unless folded
 
     box_id = "gk-records-rf-#{SecureRandom.hex(4)}"
-    # the link is hidden until the script folds the field, so without script only the field shows
-    link = link_to(l(:button_gk_records_reason_unfold), '#', role: 'button', class: 'gk-records-reason-unfold', hidden: true,
-                                                              aria: { expanded: 'false', controls: box_id })
-    # an optional reason that was unfolded folds back (the field emptied), so the save goes without a reason again
-    parts << ' ' << button_tag('×', type: 'button', class: 'gk-records-reason-close', title: l(:button_gk_records_reason_close),
-                                    aria: { label: l(:button_gk_records_reason_close) })
-    content_tag('span', safe_join([link, content_tag('span', safe_join(parts), id: box_id, class: 'gk-records-reason-box')]),
+    # the link is hidden until the script folds the field, so without script only the field shows; it only opens the
+    # field, so it says "Add a reason" with core's add icon, as core's own add links
+    text = l(:button_gk_records_reason_unfold)
+    link = link_to(respond_to?(:sprite_icon) ? sprite_icon('add', text) : text, '#', role: 'button', class: 'icon icon-add gk-records-reason-unfold',
+                                                                                     hidden: true, aria: { expanded: 'false', controls: box_id })
+    # an unfolded reason folds back (the field emptied); an optional one then goes without a reason, a required one is
+    # asked for again when the form is sent
+    parts << ' ' << btn.call('×', 'gk-records-reason-close', title: l(:button_gk_records_reason_close),
+                                                            aria: { label: l(:button_gk_records_reason_close) })
+    content_tag('span', safe_join([link, content_tag('span', safe_join(parts), id: box_id, class: 'gk-records-reason-box gk-records-reason-group')]),
                 class: 'gk-records-reason-wrap gk-records-reason-fold') + gk_records_reason_script
   end
 
-  # once per page: Använd and a chip put the reason in the field beside them; a folded field (optional) is hidden behind
-  # its link "Save with a reason", which unfolds it and puts the cursor in it, and stands after the button that saves its
-  # form. Fields added later (a form fetched into a popup) are folded when they appear.
+  # once per page: the suggestion and a chip put the reason in the field beside them; a folded field is hidden behind
+  # its link "Add a reason", which unfolds it and puts the cursor in it, and stands after the button that saves its
+  # form. The form's Save takes the reason that is written, as Use the reason does, and sends it; an empty optional
+  # reason never stops it. A required reason left empty stops the form (the browser's own check, or the field's hint;
+  # a folded one is unfolded with the cursor in it). Fields added later (a form fetched into a popup) are folded when
+  # they appear. The field's buttons are submit buttons for core's look; a click on one never sends the form.
   def gk_records_reason_script
     return ''.html_safe if @gk_records_reason_script
 
     @gk_records_reason_script = true
+    # the field's own rules (the frame, the folding) on a page of another plugin too; once, as the restricted mark does
+    gk_records_restricted_assets
     javascript_tag(<<~JS)
       (function () {
         if (window.gkRecordsReasonBound) return;
         window.gkRecordsReasonBound = true;
+        // the browser's own "Please fill in this field" is in the browser's language; the reason field says it in the
+        // page's (records' texts), and is plain again once something is written
+        var MISSING = #{l(:error_gk_records_reason_required).to_json}, SHORT = #{l(:error_gk_records_reason_short).to_json};
+        document.addEventListener('invalid', function (e) {
+          var f = e.target;
+          if (!f.matches || !f.matches('[data-gk-reason]')) return;
+          if (f.validity.valueMissing) f.setCustomValidity(MISSING);
+          else if (f.validity.tooShort) f.setCustomValidity(SHORT.replace('%{count}', String(f.minLength)));
+        }, true);
+        document.addEventListener('input', function (e) {
+          var f = e.target;
+          if (f.matches && f.matches('[data-gk-reason]')) f.setCustomValidity('');
+        }, true);
         var SUBMIT = 'input[type=submit], button[type=submit], button:not([type])';
         var after = function (w, b) { return !!(w.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); };
         // the button that saves the field's form in the same row: the last one after the field in its own element, or
@@ -472,12 +499,32 @@ module GkRecordsHelper
           }
           return null;
         };
-        // a folded field stands after the button that saves, so the button comes first and the link beside it
+        // a folded field stands after the button that saves, so the button comes first: in a table's cell beside the
+        // button, as before; in a form on its own line under the button's line, so that Save and Cancel stay side by
+        // side and the reason is never between them
         var place = function (w, f) {
           var b = saveButton(w, f);
           if (!b || !after(w, b)) return;
-          b.parentNode.insertBefore(w, b.nextSibling);
-          b.parentNode.insertBefore(document.createTextNode(' '), w);
+          if (b.closest('td')) {
+            b.parentNode.insertBefore(w, b.nextSibling);
+            b.parentNode.insertBefore(document.createTextNode(' '), w);
+            return;
+          }
+          var line = b.parentNode, form = b.form;
+          while (line && line !== form && line.parentNode !== form && getComputedStyle(line).display.indexOf('inline') === 0) line = line.parentNode;
+          if (!line || line === form) line = b;
+          var under = document.createElement('p'); under.className = 'gk-records-reason-under';
+          under.appendChild(w);
+          line.parentNode.insertBefore(under, line.nextSibling);
+        };
+        // a required field that is folded is not required to the browser (a hidden required field would stop the form
+        // without a word); the script asks for it when the form is sent, and the browser again once it is unfolded
+        var needs = function (f) { return !!f && (f.required || f.hasAttribute('data-gk-reason-required')); };
+        var hide = function (box, f, on) {
+          box.hidden = on;
+          if (!f || !needs(f)) return;
+          f.required = !on;
+          if (on) f.setAttribute('data-gk-reason-required', '1'); else f.removeAttribute('data-gk-reason-required');
         };
         var fold = function (root) {
           if (!root || !root.querySelectorAll) return;
@@ -490,22 +537,25 @@ module GkRecordsHelper
             var f = box.querySelector('[data-gk-reason]');
             place(w, f);
             if (f && f.value) return;
-            box.hidden = true;
+            // a required reason in a form stands open, so that it is seen to be required; folded only in a table's
+            // row (the row stays short) and when optional, behind "Add a reason"
+            if (needs(f) && !w.closest('td')) return;
+            hide(box, f, true);
             a.hidden = false;
           });
         };
-        var unfold = function (a) {
+        var unfold = function (a, quiet) {
           var w = a.closest('.gk-records-reason-fold'); var box = w && w.querySelector('.gk-records-reason-box');
           if (!box) return;
-          box.hidden = false;
+          var f = box.querySelector('[data-gk-reason]');
+          hide(box, f, false);
           a.setAttribute('aria-expanded', 'true');
           a.hidden = true;
-          var f = box.querySelector('[data-gk-reason]');
-          hold(f && f.form);
-          if (f) f.focus();
+          size(f && f.form);
+          if (f && !quiet) f.focus();
         };
-        // records_1021-SID-31, 38: Använd shows what was written as text (the field kept, hidden, so it is sent);
-        // Ändra opens the field again
+        // Use the reason shows what was written as text (the field kept, hidden, so it is sent); Change opens the
+        // field again
         // no wrap (the settings pages' field, which has its own script): nothing here
         var parts = function (w) {
           if (!w) return {};
@@ -521,42 +571,36 @@ module GkRecordsHelper
           if (box && box.hidden) return false;
           return !!box || p.f.required || p.f.value.trim() !== '';
         };
-        // records_1021, third round ("Spara gråas tills Använd"): the form's Save is dimmed and off while a reason
-        // stands open, and on again when it is used or closed; only the buttons this script turned off are turned on
-        var hold = function (form) {
+        // the field's buttons as high as the form's Save, whatever the theme makes it (records_1021-SID-59, 65); a Save
+        // not shown yet (Ändra status closed) has no height, and is measured again when the field opens. Save itself
+        // is never turned off for the reason: it takes what is written (stop)
+        var size = function (form) {
           if (!form) return;
           var wraps = form.querySelectorAll('.gk-records-reason-wrap');
-          var open = Array.prototype.some.call(wraps, isOpen);
-          // the field's buttons as high as Save, whatever the theme makes it (records_1021-SID-59, 65); a Save not
-          // shown yet (Ändra status closed) has no height, and is measured again when the field opens
           var saveH = 0;
           Array.prototype.some.call(form.querySelectorAll(SUBMIT), function (b) {
             if (b.closest('.gk-records-reason-wrap') || b.form !== form || !b.offsetHeight) return false;
             saveH = b.offsetHeight; return true;
           });
           if (saveH) Array.prototype.forEach.call(wraps, function (w) { w.style.setProperty('--gk-reason-btn', saveH + 'px'); });
-          Array.prototype.forEach.call(form.querySelectorAll(SUBMIT), function (b) {
-            if (b.closest('.gk-records-reason-wrap') || b.form !== form) return;
-            if (open && !b.disabled) { b.disabled = true; b.setAttribute('data-gk-reason-hold', '1'); }
-            if (!open && b.hasAttribute('data-gk-reason-hold')) { b.disabled = false; b.removeAttribute('data-gk-reason-hold'); }
-          });
         };
         var formOf = function (w) { var p = parts(w); return p.f && p.f.form; };
-        var use = function (w) {
+        // quiet: Save took the reason as the form goes, so the cursor stays where it is
+        var use = function (w, quiet) {
           var p = parts(w); if (!p.f) return;
-          if (!p.f.value.trim()) { p.f.focus(); return; }
+          if (!p.f.value.trim()) { if (!quiet) p.f.focus(); return; }
           p.used.querySelector('.gk-records-reason-used-text').textContent = p.f.value.trim();
           p.f.hidden = true; p.commit.hidden = true; p.used.hidden = false; if (p.hint) p.hint.hidden = true;
           w.setAttribute('data-gk-reason-state', 'used');
-          hold(formOf(w));
-          p.used.querySelector('.gk-records-reason-change').focus();
+          size(formOf(w));
+          if (!quiet) p.used.querySelector('.gk-records-reason-change').focus();
         };
-        // Ändra: the field again with the text that was used, Använd beside it and Ändra hidden (SID-53)
+        // Change: the field again with the text that was used, Use the reason beside it and Change hidden
         var change = function (w) {
           var p = parts(w); if (!p.f) return;
           p.f.hidden = false; p.commit.hidden = false; p.used.hidden = true;
           w.removeAttribute('data-gk-reason-state');
-          hold(formOf(w));
+          size(formOf(w));
           p.f.focus();
         };
         // folds an unfolded field back: emptied and hidden behind its link again
@@ -567,43 +611,71 @@ module GkRecordsHelper
           var f = box.querySelector('[data-gk-reason]');
           if (f) { f.value = ''; f.dispatchEvent(new Event('input', { bubbles: true })); }
           change(w);
-          box.hidden = true;
+          hide(box, f, true);
+          var hint = parts(w).hint; if (hint) hint.hidden = true;
           a.hidden = false;
           a.setAttribute('aria-expanded', 'false');
-          hold(f && f.form);
+          size(f && f.form);
           a.focus();
         };
-        // the form is not sent while a reason field stands open with a reason not used (Save is dimmed then, this is
-        // for Enter in another field); closed or used, it goes as before
+        // a folded required field with no reason used: the form is sent without the reason it needs
+        var missing = function (w) {
+          var box = w.querySelector('.gk-records-reason-box'); var p = parts(w);
+          return !!box && box.hidden && needs(p.f) && w.getAttribute('data-gk-reason-state') !== 'used' && !p.f.value.trim();
+        };
+        // When the form is sent (its Save, or Enter in another field): a reason written and not used yet is taken as
+        // Use the reason takes it, and the form goes with it; an empty optional reason goes without one. A required
+        // reason that is empty stops the form: a folded one is unfolded, and the hint shows with the cursor in the
+        // field (an open one is usually stopped first by the browser's own check, since it is required there). A
+        // field that is not shown (its part of the form hidden) is left to the form and the server.
+        var stop = function (form) {
+          var lacking = [];
+          Array.prototype.forEach.call(form.querySelectorAll('.gk-records-reason-wrap'), function (w) {
+            var p = parts(w);
+            if (!p.f || !w.getClientRects().length) return;
+            if (missing(w)) { unfold(w.querySelector('.gk-records-reason-unfold'), true); lacking.push(w); return; }
+            if (!isOpen(w)) return;
+            if (p.f.value.trim()) { use(w, true); return; }
+            if (needs(p.f)) lacking.push(w);
+          });
+          if (!lacking.length) return false;
+          lacking.forEach(function (w) { var p = parts(w); if (p.hint) p.hint.hidden = false; });
+          parts(lacking[0]).f.focus();
+          return true;
+        };
         document.addEventListener('submit', function (e) {
-          var form = e.target;
-          var open = Array.prototype.filter.call(form.querySelectorAll('.gk-records-reason-wrap'), isOpen);
-          if (!open.length) return;
-          e.preventDefault();
-          open.forEach(function (w) { var p = parts(w); if (p.hint) p.hint.hidden = false; });
-          parts(open[0]).f.focus();
+          if (stop(e.target)) e.preventDefault();
         }, true);
+        // Enter in another field of the form clicks the form's first submit button, which may be one of the field's
+        // (a field that stands before Save): the form is sent as by its own Save instead
+        var implicit = function (b) {
+          var form = b.form; if (!form) return;
+          var save = Array.prototype.filter.call(form.querySelectorAll(SUBMIT), function (x) { return x.form === form && !x.closest('.gk-records-reason-wrap'); })[0];
+          if (stop(form) || !save || save.disabled) return;
+          if (form.requestSubmit) form.requestSubmit(save); else save.click();
+        };
         window.gkRecordsReasonFold = fold;
         fold(document);
         // the script runs right after the first field, before the button that saves exists: every folded field is
-        // placed again when the page is read (Save first, then "Save with a reason")
-        var holdAll = function (root) {
+        // placed again when the page is read (Save first, then "Add a reason")
+        var sizeAll = function (root) {
           if (!root || !root.querySelectorAll) return;
           var forms = [];
           root.querySelectorAll('.gk-records-reason-wrap').forEach(function (w) { var form = formOf(w); if (form && forms.indexOf(form) < 0) forms.push(form); });
-          forms.forEach(hold);
+          forms.forEach(size);
         };
         document.addEventListener('DOMContentLoaded', function () {
           fold(document);
           document.querySelectorAll('.gk-records-reason-fold').forEach(function (w) { place(w, w.querySelector('[data-gk-reason]')); });
-          holdAll(document);
+          sizeAll(document);
         });
-        // a field that is not folded holds Save once text is written in it
+        // a reason written after the hint showed: the hint goes
         document.addEventListener('input', function (e) {
           var w = e.target.closest ? e.target.closest('.gk-records-reason-wrap') : null;
-          if (w && e.target.matches('[data-gk-reason]')) hold(e.target.form);
+          if (!w || !e.target.matches('[data-gk-reason]') || !e.target.value.trim()) return;
+          var hint = parts(w).hint; if (hint) hint.hidden = true;
         });
-        // Enter in a reason's line uses it, as Använd does, instead of sending the form
+        // Enter in a reason's line uses it, as Use the reason does, instead of sending the form
         document.addEventListener('keydown', function (e) {
           if (e.key !== 'Enter' || !e.target.matches || !e.target.matches('input[data-gk-reason]')) return;
           var w = e.target.closest('.gk-records-reason-wrap');
@@ -613,7 +685,7 @@ module GkRecordsHelper
         });
         if (window.MutationObserver) {
           new MutationObserver(function (ms) {
-            ms.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1) { fold(n); holdAll(n); } }); });
+            ms.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1) { fold(n); sizeAll(n); } }); });
           }).observe(document.documentElement, { childList: true, subtree: true });
         }
         document.addEventListener('keydown', function (e) {
@@ -624,6 +696,13 @@ module GkRecordsHelper
           unfold(a);
         });
         document.addEventListener('click', function (e) {
+          // a click on one of the field's buttons never sends the form; a click no pointer or key on the button made
+          // (detail 0, the focus elsewhere) is Enter in another field, and the form goes as by its Save
+          var own = e.target.closest ? e.target.closest('.gk-records-reason-wrap button') : null;
+          if (own) {
+            e.preventDefault();
+            if (e.detail === 0 && document.activeElement !== own) { implicit(own); return; }
+          }
           var u = e.target.closest ? e.target.closest('.gk-records-reason-unfold') : null;
           if (u) { e.preventDefault(); unfold(u); return; }
           var c = e.target.closest ? e.target.closest('.gk-records-reason-close') : null;

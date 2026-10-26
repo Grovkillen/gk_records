@@ -145,10 +145,33 @@ div.issue .splitcontent:has(.gk-records-verification-row) { overflow: visible; }
 .gk-records-reason-used { display: inline-flex; align-items: center; gap: 0.4em; vertical-align: middle; }
 .gk-records-reason-used-text { font-style: italic; }
 /* what the field hides stays hidden: a display above would show it beside the field (SID-46, 52, 53) */
-.gk-records-reason-wrap [hidden], .gk-records-reason-box[hidden], .gk-records-reason-used[hidden],
+.gk-records-reason-wrap [hidden], .gk-records-reason-wrap[hidden], .gk-records-reason-box[hidden], .gk-records-reason-used[hidden],
 .gk-records-setting-reason [hidden] { display: none !important; }
-/* Save is dimmed and off while a reason stands open and not used (records_1021, third round) */
-input[type=submit][data-gk-reason-hold], button[data-gk-reason-hold] { opacity: 0.45; cursor: default; }
+/* The shared reason field. Its buttons are core's submit buttons, with core's look and hover. Folded, the link "Add a
+   reason" stands as core's icon links, in the middle of Save's line. Open, the field and its buttons are one group in
+   a light frame in core's colours, which wraps inside its cell or field instead of running out of it: the line it
+   stands on may break before it even where the cell keeps its buttons on one line. */
+:has(> .gk-records-reason-wrap) { white-space: normal; }
+.gk-records-reason-wrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3em; vertical-align: middle;
+  max-inline-size: 100%; white-space: normal; }
+.gk-records-reason-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3em; max-inline-size: 100%; min-inline-size: 0;
+  box-sizing: border-box; padding: 2px 3px; border: 1px solid var(--oc-gray-3); border-radius: 3px; background-color: var(--oc-gray-0); }
+.gk-records-reason-group > input[data-gk-reason], .gk-records-reason-group > textarea[data-gk-reason] { flex: 1 1 auto; min-inline-size: 6em; max-inline-size: 100%; margin: 0; }
+/* the hint and the chips come last, after ×, so the field and its buttons stay together on the row */
+.gk-records-reason-group > .gk-records-reason-hint { order: 10; }
+.gk-records-reason-group > .gk-records-reason-chips { order: 11; flex-basis: 100%; }
+.gk-records-reason-group button { margin: 0; }
+/* the settings pages' field: the link and the label in the middle of Save's line (the script sets --gk-reason-btn from
+   Save's height), the field growing downwards so Save stays put; the frame stands out above by its own
+   border and padding, so the label keeps to Save's middle */
+.gk-records-setting-reason { display: inline-flex; align-items: flex-start; vertical-align: top; margin-inline-start: 8px; max-inline-size: 100%; }
+.gk-records-setting-reason > a.gk-records-setting-reason-unfold { min-block-size: var(--gk-reason-btn, 28px); }
+.gk-records-setting-reason-box { display: inline-flex; flex-wrap: wrap; align-items: flex-start; gap: 6px; max-inline-size: 100%; box-sizing: border-box;
+  padding: 2px 3px; margin-block-start: -3px; border: 1px solid var(--oc-gray-3); border-radius: 3px; background-color: var(--oc-gray-0); }
+.gk-records-setting-reason-box > label { display: inline-flex; align-items: center; min-block-size: var(--gk-reason-btn, 28px); font-weight: bold; }
+.gk-records-setting-reason-box > textarea { resize: vertical; max-inline-size: 100%; margin: 0; }
+.gk-records-setting-reason-box > .gk-records-reason-used { min-block-size: var(--gk-reason-btn, 28px); }
+.gk-records-setting-reason-box > .gk-records-reason-hint { flex-basis: 100%; }
 /* the text and the badges stand in the middle of their rows (SID-49, 50, 51) */
 table.gk-records-links-table td, table.gk-records-assess-table td { vertical-align: middle; }
 table.gk-records-assess-table .gk-records-basis { margin-block: 0; }
@@ -185,3 +208,8 @@ div.journal div.wiki.gk-records-journal-reason > p:first-of-type { margin-block-
   ul.gk-records-hits li label.block { display: flex; align-items: center; gap: 0.4em; }
   .tabular ul.gk-records-hits input[type=radio] { inline-size: auto; flex: none; margin: 0; }
 }
+/* the settings page's registered targets: core's list, the texts at the start of their cells as in core's own lists */
+table.list.gk-records-targets td { text-align: start; }
+table.list.gk-records-targets td.key { white-space: nowrap; }
+/* the reason field on its own line under the form's Save and Cancel (the script moves it there), never between them */
+.gk-records-reason-under { margin-block: 0.4em 0; }

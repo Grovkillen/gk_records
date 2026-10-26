@@ -5,7 +5,8 @@
 class GkRecordsReadingsController < ApplicationController
   self.main_menu = false
   before_action :require_login
-  before_action :require_admin, only: %i[index]
+  # the list is for administrators, as core's require_admin; an OAuth token also needs the read scope
+  before_action -> { render_403 unless GkRecords::ApiScope.admin_allows?(User.current, GkRecords::ApiScope::READ) }, only: %i[index]
   before_action :find_reading, only: %i[show]
   accept_api_auth :index, :show
   helper :gk_records

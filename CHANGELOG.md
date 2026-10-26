@@ -2,6 +2,29 @@
 
 All notable changes to GK Records are documented in this file.
 
+## 1.03.000 (2026-10-26)
+
+### Changed
+
+* The shared reason field: the link that opens it says "Add a reason", with Redmine's add icon, since it only opens the field; the form's own Save saves.
+* Open, the field and its buttons stand in one light frame. The button is called "Use the reason", the suggestion button "Use the suggestion", the × "Remove the reason", and the placeholder is "Reason for the change".
+* The field's buttons look and react to the pointer as Redmine's own buttons.
+* In a table cell, the field and its buttons wrap inside the cell instead of running out of it.
+* On the settings pages the reason link and its label stand on the same line as the Save button beside them.
+* Settings page: the registered targets are a list with one row per target: what it is, its key, the plugin that registered it, and how many event and link kinds can be used on it (their names as a tooltip); the link kinds that go on every target are named once under the list. The assessment kinds made as data have a box of their own, shown when there are some.
+* The shared reason field in a form stands on its own line under the form's Save and Cancel, so that Save and Cancel are always side by side; in a table's row it stays beside the row's Save.
+* The shared reason field: the form's Save takes the reason that is written and sends it, as "Use the reason" does; Save is no longer dimmed while a reason is open. An empty optional reason never stops the form, and an empty required reason still does (the browser's own check, or the field's hint). "Use the reason" stays for whoever wants to see the reason as text first. The same on the settings pages.
+* The hint for a required reason says "A reason is required: write it before saving."; the hint asking to click "Use the reason" first is gone.
+* A required reason in a form stands open, so that it is seen to be required; an optional one is folded behind "Add a reason". In a table's row a required reason stays folded and opens with the cursor in it and a hint when the row is saved without it. Without JavaScript the field shows as before, and the server still refuses a missing reason.
+
+### Fixed
+
+* A required reason left empty, or too short, is asked for in the page's language instead of the browser's own message.
+
+### Security
+
+* REST API: an OAuth token reads the kinds, the readings list and the reasons only with the scope "Read record kinds, readings and reasons", and changes a reason mode only with "Change reason modes" (the last three stay for administrators); the event log no longer shows a token events of projects outside its scopes, and a linked issue's status is shown only when the token may see the issue.
+
 ## 1.02.000 (2026-10-24)
 
 ### Added
