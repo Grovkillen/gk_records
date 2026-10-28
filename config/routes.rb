@@ -24,6 +24,8 @@ scope 'gk_records' do
   post 'verification', to: 'gk_records_verifications#update', as: 'gk_records_verification'
   # The document list's template
   get 'document_import/template', to: 'gk_records_document_imports#template', as: 'gk_records_document_import_template'
+  # The export log: a print asked for in the browser
+  post 'printed', to: 'gk_records_prints#create', as: 'gk_records_printed'
   # A global id resolved to the thing here (GET /gk_records/identities/<gid>.json)
   get 'identities/:gid', to: 'gk_records_identities#show', as: 'gk_records_identity', constraints: { gid: /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/ },
                          defaults: { format: 'json' }

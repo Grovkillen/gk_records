@@ -4,7 +4,7 @@
 # never thinned (P1).
 class GkRecordsEvent < ApplicationRecord
   self.table_name = 'gk_records_events'
-  # created_at is an instant with its zone (migration 011), so the order holds in the hour that comes twice
+  # created_at is an instant with its zone (migration 002), so the order holds in the hour that comes twice
   GkRecordsInstant.attributes!(self, :created_at)
 
   belongs_to :user, optional: true

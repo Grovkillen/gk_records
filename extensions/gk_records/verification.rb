@@ -244,11 +244,24 @@ module GkRecords
       j
     end
 
-    # The row in the history: "Verifieringsstatus ändrad från Hypotes till Delvis verifierad", in the reader's language
-    module IssuesHelperPatch
-      def show_detail(detail, no_html = false, options = {})
-        return super unless detail.property == Verification::JOURNAL_PROPERTY && detail.prop_key == Verification::JOURNAL_KEY
+    # The row in the history: "Verifieringsstatus ändrad från Hypotes till Delvis verifierad", in the reader's language.
+    # core_stuff's register journal_detail (property gk_records, prop_key verification), so every other detail stays
+    # core's. The row is drawn by the one that asks core's show_detail (a view, or a controller with IssuesHelper), as
+    # before: line is bound to it.
+    module HistoryLine
+      def self.call(detail, view, no_html, options) = instance_method(:line).bind_call(view, detail, no_html, options)
 
+      def self.register!
+        unless defined?(::GkCoreStuff::JournalDetails::PluginDsl)
+          ::Rails.logger.warn("[gk_records] gk_core_stuff is missing, although it is required: the line Verification in an issue's history is core's own")
+          return
+        end
+
+        ::Redmine::Plugin.find(:gk_records).journal_detail property: Verification::JOURNAL_PROPERTY, prop_key: Verification::JOURNAL_KEY,
+                                                           renderer: self
+      end
+
+      def line(detail, no_html = false, _options = {})
         label = Verification.title
         old = Verification.label(detail.old_value).presence
         new = Verification.label(detail.value).presence
@@ -425,11 +438,8 @@ module GkRecords
       end
     end
 
-    def apply_patches!
-      ::Issue.include(IssueValue) unless ::Issue < IssueValue
-      ::IssueQuery.prepend(IssueQueryPatch) unless ::IssueQuery < IssueQueryPatch
-      ::TrackersController.prepend(TrackersControllerPatch) unless ::TrackersController < TrackersControllerPatch
-      ::IssuesHelper.prepend(IssuesHelperPatch) unless ::IssuesHelper < IssuesHelperPatch
+    # The tracker's box Verifieringsstatus (core's hook); the patches are applied with the others (Patches.apply!)
+    def register_hooks!
       Redmine::Hook.add_listener(TrackerHooks) unless Redmine::Hook.listeners.any?(TrackerHooks)
     end
 

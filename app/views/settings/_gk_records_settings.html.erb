@@ -61,6 +61,13 @@
   <em class="info"><%= l(:text_gk_records_assessment_kinds_data) %></em></p>
 </fieldset>
 <% end %>
+<%# The export log: every export, download and print as an event (GkRecords::ExportLog); on when nothing is saved %>
+<fieldset class="box tabular"><legend><%= l(:label_gk_records_export_log) %></legend>
+<p><label for="settings_export_log"><%= l(:field_gk_records_export_log) %></label>
+  <%= hidden_field_tag 'settings[export_log]', '0', id: nil %>
+  <%= check_box_tag 'settings[export_log]', '1', settings['export_log'].to_s != '0', id: 'settings_export_log' %>
+  <em class="info"><%= l(:text_gk_records_export_log_info) %></em></p>
+</fieldset>
 <%# The registered targets as core's list: one row per sort of thing, who registered it and which event and link kinds
     may be used on it, so that what is a target is seen at once (icons_1025-SID-24) %>
 <%# The cells give the number of kinds, their names in the tooltip; the link kinds that go on every target are named

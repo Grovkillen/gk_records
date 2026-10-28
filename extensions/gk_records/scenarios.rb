@@ -266,6 +266,8 @@ module GkRecords
       # The assessment kinds kept in records' settings are emptied with the instance, as their history in the events is
       # (scenarios' generic Wipe.clear_setting)
       ::GkScenarios::Wipe.clear_setting(:gk_records, AssessmentKinds::SETTING) if ::GkScenarios::Wipe.respond_to?(:clear_setting)
+      # the export log's step and expectations (scenarios_export_log.rb)
+      register_export_log!
       # The reasons' modes the scenario needs (records: { reason_modes: { all: places } }; all is the installation),
       # before every other step, so that what the other plugins' steps write keeps its reason: a new installation has
       # reasons off (records_1021-SID-24), and the plugins' own reason rules are tried with each place's default
@@ -371,7 +373,7 @@ module GkRecords
         { 'ok' => failed.empty?, 'want' => "the reader's day #{today.iso8601}", 'got' => failed.empty? ? "the reader's day #{today.iso8601}" : "not: #{failed.join(', ')}" }
       end
 
-      # rec_instant: the event log's created_at keeps the instant with its zone (migration 011). Two events in the
+      # rec_instant: the event log's created_at keeps the instant with its zone (migration 002). Two events in the
       # hour that comes twice the night summer time ends (00:30Z and 01:30Z on 25 October 2026, both 02:30 Swedish
       # time), the later one written first, read back as the instants they were and in that order, and the log's
       # date filter finds both on the reader's day. Rolled back.
@@ -397,11 +399,11 @@ module GkRecords
         { 'ok' => failed.empty?, 'want' => 'two instants in the doubled hour, in order', 'got' => failed.empty? ? 'two instants in the doubled hour, in order' : "not: #{failed.join(', ')}" }
       end
 
-      # rec_origin_instant: notes, links and origin keep their times with their zone (migration 012). For each table the
-      # scenario's first row and a copy of it are moved into the hour that comes twice the night summer time ends
-      # (00:30Z and 01:30Z on 25 October 2026, both 02:30 Swedish time), the lower id to the later one, and read back
-      # as the instants they were and in that order. A field origin's copy gets a field of its own (one per field); an
-      # assessment is made when the scenario has none. Rolled back.
+      # rec_origin_instant: notes, links, assessments, readings and origin keep their times with their zone (migrations
+      # 001, 003, 004, 006 and 007). For each table the scenario's first row and a copy of it are moved into the hour
+      # that comes twice the night summer time ends (00:30Z and 01:30Z on 25 October 2026, both 02:30 Swedish time),
+      # the lower id to the later one, and read back as the instants they were and in that order. A field origin's copy
+      # gets a field of its own (one per field); an assessment is made when the scenario has none. Rolled back.
       ::GkScenarios::Expect.register('rec_origin_instant') do |_ctx, _e|
         failed = []
         first = ::Time.utc(2026, 10, 25, 0, 30)
@@ -437,11 +439,11 @@ module GkRecords
       end
 
       # rec_text_instant: verification statuses and the system texts' revisions keep their times with their zone
-      # (migration 013). Two statuses set in the hour that comes twice the night summer time ends (00:30Z and 01:30Z on
-      # 25 October 2026, both 02:30 Swedish time), the later one written first, are read back as the instants they were
-      # and in that order. Two revisions of one text cell hold from those two instants: the text at 00:45Z is the
-      # first, at 01:00Z (02:00 the second time) still the first, at 01:45Z the second, and before both the first
-      # (a note older than the cell's first row). Rolled back.
+      # (migrations 008 and 010). Two statuses set in the hour that comes twice the night summer time ends (00:30Z and
+      # 01:30Z on 25 October 2026, both 02:30 Swedish time), the later one written first, are read back as the
+      # instants they were and in that order. Two revisions of one text cell hold from those two instants: the text at
+      # 00:45Z is the first, at 01:00Z (02:00 the second time) still the first, at 01:45Z the second, and before both
+      # the first (a note older than the cell's first row). Rolled back.
       ::GkScenarios::Expect.register('rec_text_instant') do |_ctx, _e|
         failed = []
         first = ::Time.utc(2026, 10, 25, 0, 30)

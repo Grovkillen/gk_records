@@ -6,7 +6,7 @@
 # data is a list in the order the owner gave: [{ "key", "label", "value" }], labels frozen with the values.
 class GkRecordsAssessment < ApplicationRecord
   self.table_name = 'gk_records_assessments'
-  # an instant with its zone (migration 012)
+  # an instant with its zone (migration 004)
   GkRecordsInstant.attributes!(self, :assessed_at)
 
   belongs_to :user, optional: true

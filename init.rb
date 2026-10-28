@@ -5,8 +5,8 @@
 # Nothing is edited or deleted: a note is corrected by a new note (link "corrects") and voided with a reason.
 # Notes are light Markdown only (5.6c): core's formatter, then everything above the level is stripped.
 # Registry and hooks live in extensions/, models and views in app/.
-# Depends on: none required; optional gk_queries, gk_compat, gk_fields, gk_gui_stuff, gk_icons, gk_people, gk_revisions,
-# gk_scenarios.
+# Depends on: gk_core_stuff required; optional gk_queries, gk_compat, gk_fields, gk_gui_stuff, gk_icons, gk_people,
+# gk_revisions, gk_scenarios.
 
 require_relative 'extensions/gk_records/registry'
 require_relative 'extensions/gk_records/api_scope'
@@ -23,18 +23,21 @@ require_relative 'extensions/gk_records/readings'
 require_relative 'extensions/gk_records/document_import'
 require_relative 'extensions/gk_records/events_csv'
 require_relative 'extensions/gk_records/registrations'
+require_relative 'extensions/gk_records/export_log'
+require_relative 'extensions/gk_records/patches'
 
 Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.03.000'
+  version     '1.04.000'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the
-  # number on the tabs and the name of Verifieringsstatus per language are off or empty (human test records_1021)
+  # number on the tabs and the name of Verifieringsstatus per language are off or empty (human test records_1021); the
+  # export log is on
   settings default: { 'note_max_length' => '4000', 'show_origin_badge' => '1', 'mark_restricted_people' => '0',
-                    'verification_tracker_ids' => [], 'features' => {}, 'tab_counts' => '0' },
+                    'verification_tracker_ids' => [], 'features' => {}, 'tab_counts' => '0', 'export_log' => '1' },
            partial: 'settings/gk_records_settings'
 
   # The project module Händelser (1.01.000): Se händelser per project, the project's tab and, under Administration,
@@ -66,6 +69,10 @@ Redmine::Plugin.register :gk_records do
   # last three stay for administrators.
   permission :gk_records_api_read, {}, require: :loggedin
   permission :gk_records_api_manage, {}, require: :loggedin
+
+  # The export log: who may see the exports, downloads and prints in a project (the events ask it); outside the project
+  # module
+  permission :gk_records_view_exports, {}, require: :member
 end
 
 # The plugin's own kinds (other plugins add theirs the same way); registered again after a reload
@@ -74,6 +81,9 @@ GkRecords::Kinds.register_defaults
 GkRecords::SettingsHistory.register!
 # The reasons' modes: the target, the kinds and records' own places; other plugins declare theirs
 GkRecords::Reasons.register_records!
+# The functions' register: the target and the kind of a switch, and records' own declared function (the note kinds
+# beyond kommentar and skäl, off for a new installation); other plugins declare theirs
+GkRecords::Features.register_records!
 # A reading is a target, so events can be written on it
 GkRecords::Readings.register_target!
 # The issue is records' own target (before, workflow_rules registered it)
@@ -82,27 +92,29 @@ GkRecords::IssueLinks.register_target!
 GkRecords::Verification.register_assessment_target!
 # Core's document is a target (Läs in dokument points its fields to the reading and links it)
 GkRecords::DocumentImport.register_target!
-# Core patch: the column and the filter Verifieringsstatus in the issue list
-GkRecords::Verification.apply_patches!
-Setting.prepend(GkRecords::SettingsHistory::SettingPatch) unless Setting < GkRecords::SettingsHistory::SettingPatch
-SettingsController.prepend(GkRecords::SettingsHistory::ControllerPatch) unless SettingsController < GkRecords::SettingsHistory::ControllerPatch
+# Core patches (extensions/gk_records/patches.rb): the column and the filter Verifieringsstatus in the issue list, the
+# settings' history, the tab Kopplingar in the issue's history row and gk_records_list and the light formatter in
+# every view (so owner plugins render the list without their own helper); applied here and again on every reload
+GkRecords::Patches.apply!
+GkRecords::Verification.register_hooks!
 Redmine::Hook.add_listener(GkRecords::SettingsHooks) unless Redmine::Hook.listeners.any?(GkRecords::SettingsHooks)
 Redmine::Hook.add_listener(GkRecords::IssueHooks) unless Redmine::Hook.listeners.any?(GkRecords::IssueHooks)
 Redmine::Hook.add_listener(GkRecords::ReasonHooks) unless Redmine::Hook.listeners.any?(GkRecords::ReasonHooks)
 # The origin line on a document's page and Läs in dokument on the Dokument tab
 Redmine::Hook.add_listener(GkRecords::DocumentImportHooks) unless Redmine::Hook.listeners.any?(GkRecords::DocumentImportHooks)
-# Core patch (documented): the tab Kopplingar in the issue's history row (links_view); core has no hook for it
-IssuesHelper.prepend(GkRecords::IssueLinks::HelperPatch) unless IssuesHelper < GkRecords::IssueLinks::HelperPatch
 # Plugins that load before records (alphabetical: people, queries) register their targets and kinds here
 Redmine::Plugin.all.each do |pl|
   mod = pl.id.to_s.camelize.safe_constantize
   mod.register_records! if mod.respond_to?(:register_records!)
 end
+# The export log's kinds, and the project and the wiki page as targets where no plugin before registered them
+GkRecords::ExportLog.register!
+Redmine::Hook.add_listener(GkRecords::ExportLogHooks) unless Redmine::Hook.listeners.any?(GkRecords::ExportLogHooks)
 # The identity hook on every target known so far; after a code reload the models are new classes, and targets registered
 # once (after initialize) get the hook again here. Targets registered later install it themselves.
 GkRecords::Identity.install_all!
-# gk_records_list and the light formatter in every view, so owner plugins render the list without their own helper
-ApplicationController.helper(GkRecordsHelper) unless ApplicationController._helpers.include?(GkRecordsHelper)
+# The row Verifieringsstatus in the issue's history, in core_stuff's register (core_stuff loads before records)
+Rails.configuration.after_initialize { GkRecords::Verification::HistoryLine.register! }
 
 # The event log as a registered query when gk_queries is there (it loads first, alphabetically)
 if defined?(GkQueries)
@@ -111,18 +123,10 @@ if defined?(GkQueries)
   GkQueries::Registry.register('records_events', klass: 'GkRecordsEventQuery', plugin: :gk_records, label: :label_gk_records_events,
                                                   visible: ->(user) { user.admin? }, **csv_opt)
 end
-# The note kinds beyond kommentar and skäl are a declared function, off for a new installation; gui_stuff loads after
-# records
 Rails.configuration.after_initialize do
-  if defined?(::GkGuiStuff::Features)
-    ::GkGuiStuff::Features.register('records.more_note_kinds', plugin: :gk_records, default: false,
-                                                                label: :label_gk_feature_records_more_note_kinds,
-                                                                help: :text_gk_feature_records_more_note_kinds)
-    # Verification status is no longer a function under Administration > Funktioner: it is on when a tracker has it
-    # (records_1021-SID-28; GkRecords::Features)
-  end
-  # The reasons' modes name the administrator who set them
+  # The reasons' modes and the function switches name the administrator who set them
   ::GkPeople::Processing.declare(:gk_records_reason_modes, category: 'records', plugin: :gk_records) if defined?(::GkPeople::Processing)
+  ::GkPeople::Processing.declare(:gk_records_features, category: 'records', plugin: :gk_records) if defined?(::GkPeople::Processing)
   # The readings name who ran them, and their fields point at registered persons
   if defined?(::GkPeople::Processing)
     %i[gk_records_readings gk_records_field_origins gk_records_verifications].each { |t| ::GkPeople::Processing.declare(t, category: 'records', plugin: :gk_records) }

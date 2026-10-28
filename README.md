@@ -18,6 +18,7 @@ Logs and administration:
 - Administration > Events: the whole event log. With gk_queries it is a query with list, filters, CSV and API; without it the plugin's own page. Users with the global permission "View the whole event log" can open it; each target's own events follow who may see the target.
 - Settings history: every changed setting, Redmine's own and every plugin's, is an event with who, when, before and after, and an optional "Reason for the change" field on the settings pages. Values that look like secrets are never written, only that they changed.
 - Administration > Reasons: one mode for every place where a person is asked for a reason (Off, Optional or Required), for the whole installation and per place. The reason field suggests the person's latest and earlier reasons for that place.
+- Log of exports, downloads and prints: every export (Redmine's own and the GK plugins'), every attachment downloaded and every print asked for in the browser is an event on what it is about, with who, when, file name, SHA-256 checksum, size, query and number of rows, and IP address. A print means the browser started printing; it does not say whether paper came out. The events are seen by users with the project permission "View exports and prints" (administrators see all). A named export can also be downloaded as a zip with the file and a `manifest.json` (source, route, format, times, rows, size and SHA-256), offered as a check box in Redmine's CSV dialog and a "with manifest" link beside the other formats. On by default; up to GK Core Stuff 1.00.000 this was a module of that plugin.
 - Administration > Readings: every import and sync run made by a GK plugin, with source, route, format, the name, size and SHA-256 of each file read (never the file), the mapping used, an optional manifest kept to the keys that describe the source, and counts (added, changed, unchanged, rejected). Fields set by a reading can show a short origin text beside them.
 
 Other features:
@@ -39,12 +40,14 @@ This plugin is developed and tested on Windows 11 with PostgreSQL only. That is 
 
 GK plugins:
 
-- Required: none.
-- Optional: gk_queries (the event log as a query with filters, CSV and API, and the Links page as a relation view), gk_compat (core's colour variables on Redmine 6.0 and 6.1), gk_fields (translated list values in assessments), gk_gui_stuff (verification status and more note kinds as switchable functions; without it verification status is on and the extra note kinds are off), gk_icons (the icon for people others may not see), gk_people (the plugin's tables in the register of personal data processing), gk_revisions (the file name of the document list template), gk_scenarios (the plugin's scenario steps and checks).
+- Required: gk_core_stuff (1.01.000 or later): the line Verification in an issue's history is registered in its register of history lines; without it the line is Redmine's own. The export log knows Redmine's own exports from its list of them; without it only the plugins' exports, downloads and prints are logged.
+- Optional: gk_queries (the event log as a query with filters, CSV and API, and the Links page as a relation view), gk_compat (core's colour variables on Redmine 6.0 and 6.1), gk_fields (translated list values in assessments), gk_gui_stuff (the page Administration > Functions, where the functions in the plugin's register are switched on, among them More note kinds), gk_icons (the icon for people others may not see), gk_people (the plugin's tables in the register of personal data processing), gk_revisions (the file name of the document list template, and the export log's file names in the zip with a manifest), gk_scenarios (the plugin's scenario steps and checks).
 
 ## Installation
 
 The plugin directory must be named `gk_records` (it is the plugin id): `plugins/gk_records/`.
+
+This version is installed anew and does not upgrade an earlier one: uninstall the earlier version first (as under Uninstall below, while its own files are in place), then install this one. Nothing is carried over from the earlier installation.
 
 1. Unpack the release package into Redmine's `plugins` directory.
 2. Run the migrations: `bundle exec rake redmine:plugins:migrate RAILS_ENV=production`
@@ -57,10 +60,10 @@ Uninstall:
 
 ## Configuration
 
-- Administration > Plugins > Configure (GK Records): longest note, show origin, mark people not everyone may see (off by default), the trackers that get verification status, and the assessment kinds kept as data.
+- Administration > Plugins > Configure (GK Records): longest note, show origin, mark people not everyone may see (off by default), the trackers that get verification status, the assessment kinds kept as data, and the log of exports, downloads and prints (on by default).
 - Administration > Reasons: the mode of every reason field.
-- Administration > Roles and permissions: the global permission "View the whole event log".
-- With gk_gui_stuff, Administration > Functions switches "More note kinds" (off by default) and "Verification status" (on by default).
+- Administration > Roles and permissions: the global permission "View the whole event log", and the project permission "View exports and prints" for the roles that should see the export log's events.
+- The register of functions: every GK plugin declares its switchable functions in GK Records, and with gk_gui_stuff Administration > Functions switches them on or off, each with an optional reason kept as an event. A function is off until it is switched on, also "More note kinds"; one that is off is not shown, and its data stays.
 
 ## Usage
 
@@ -68,6 +71,7 @@ Uninstall:
 - On an issue: the Links tab in the history, the Assessments tab when there are assessments, and the Verification status row on the chosen trackers.
 - In a project with the Documents module: "Read in documents" on the Documents tab.
 - Administrators: Administration > Events, Reasons and Readings.
+- Export, download and print events appear among the events on the issue, wiki page, project or user they concern, for users with the permission; the "with manifest" choice appears in Redmine's CSV export dialog and beside the other export formats.
 
 ## Changelog
 

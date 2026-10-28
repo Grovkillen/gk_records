@@ -253,7 +253,7 @@ module GkRecords
     def offered_note?(key)
       return true unless MORE_NOTE_KINDS.include?(key.to_s)
 
-      defined?(::GkGuiStuff::Features) ? ::GkGuiStuff::Features.on?('records.more_note_kinds') : false
+      Features.on?('records.more_note_kinds')
     end
 
     def register_defaults

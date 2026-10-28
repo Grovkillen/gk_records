@@ -9,7 +9,7 @@
 # again. Checked here, so pages, API and plugins are refused alike.
 class GkRecordsLink < ApplicationRecord
   self.table_name = 'gk_records_links'
-  # instants with their zone (migration 012)
+  # instants with their zone (migration 003)
   GkRecordsInstant.attributes!(self, :created_at, :voided_at)
 
   REASON_MAX = 500

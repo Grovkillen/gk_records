@@ -86,7 +86,7 @@ class GkRecordsEventQuery < Query
     "(#{sql_for_field(field, operator, value, queried_table_name, field)})"
   end
 
-  # created_at is the only date here, and has its zone (migration 011): core's date filter writes the day's bounds
+  # created_at is the only date here, and has its zone (migration 002): core's date filter writes the day's bounds
   # in the reader's zone as text without an offset, which the database would read in its own session's zone, so they
   # are written in UTC with the offset written out
   def quoted_time(time, is_custom_filter)

@@ -4,7 +4,7 @@
 # "corrects", and a note is voided (with a reason, itself a note on the note), never deleted.
 class GkRecordsNote < ApplicationRecord
   self.table_name = 'gk_records_notes'
-  # instants with their zone (migration 012)
+  # instants with their zone (migration 001)
   GkRecordsInstant.attributes!(self, :created_at, :voided_at)
 
   ORIGINS = %w[human system import agent].freeze

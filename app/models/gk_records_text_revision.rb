@@ -5,7 +5,7 @@
 # is not rewritten).
 class GkRecordsTextRevision < ApplicationRecord
   self.table_name = 'gk_records_text_revisions'
-  # instants with their zone (migration 013)
+  # instants with their zone (migration 010)
   GkRecordsInstant.attributes!(self, :valid_from, :created_at)
 
   validates :key, :locale, :sha256, :valid_from, presence: true

@@ -14,19 +14,24 @@ module GkRecords
 
     # True without a token; with a token only when it has the permission
     def allows?(user, permission)
-      defined?(::GkCompat) ? ::GkCompat.call(:scope_allows?, user, permission) : true
+      shim?(:scope_allows?) ? ::GkCompat.call(:scope_allows?, user, permission) : true
     end
 
     # The account is an administrator and the token, if any, has the permission (or :admin)
     def admin_allows?(user, permission)
-      defined?(::GkCompat) ? ::GkCompat.call(:admin_allows?, user, permission) : user.admin?
+      shim?(:admin_allows?) ? ::GkCompat.call(:admin_allows?, user, permission) : user.admin?
     end
 
     # Project.allowed_to_condition with the token's scopes
     def project_condition(user, permission, options = {}, &block)
-      return ::GkCompat.call(:project_condition, user, permission, options, &block) if defined?(::GkCompat)
+      return ::GkCompat.call(:project_condition, user, permission, options, &block) if shim?(:project_condition)
 
       Project.allowed_to_condition(user, permission, options, &block)
+    end
+
+    # gk_compat is there and has the shim for the running series (an older gk_compat has no scope check)
+    def shim?(name)
+      defined?(::GkCompat) && ::GkCompat.respond_to?(:used) && ::GkCompat.used.shims.key?(name)
     end
   end
 end

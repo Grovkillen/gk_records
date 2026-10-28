@@ -40,7 +40,7 @@ module GkRecords
       false
     end
 
-    # Whether a table has the columns text_key and text_values (migration 010)
+    # Whether a table has the columns text_key and text_values (migrations 001 to 003)
     def columns?(klass)
       klass.column_names.include?('text_key') && klass.column_names.include?('text_values')
     rescue StandardError
@@ -120,7 +120,7 @@ module GkRecords
     # The row for one cell as it stood at a time: the latest at or before it, else the cell's first row
     def revision_at(key, locale, at)
       scope = ::GkRecordsTextRevision.where(key: key.to_s, locale: locale.to_s)
-      # through the attribute, so the time is compared as the instant it is (migration 013)
+      # through the attribute, so the time is compared as the instant it is (migration 010)
       (at && scope.where(valid_from: ..at).order(valid_from: :desc, id: :desc).first) || scope.order(:valid_from, :id).first
     end
 

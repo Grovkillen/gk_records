@@ -2,6 +2,24 @@
 
 All notable changes to GK Records are documented in this file.
 
+## 1.04.000 (2026-10-28)
+
+### Added
+
+* The register of the GK plugins' functions (Administration > Functions in GK GUI Stuff shows it): every GK plugin declares its functions here, each is off until an administrator switches it on, and every switch is an event with its reason. A function nobody declared is off. The function More note kinds is declared here.
+* The export log, moved here from GK Core Stuff: every export (Redmine's and the plugins'), every attachment downloaded and every print asked for in the browser is an event on what it is about, seen by those with the permission View exports and prints in the project, and a named export can be downloaded as a zip with manifest.json. It is switched on and off in this plugin's settings.
+
+### Changed
+
+* This version is installed anew and does not upgrade an earlier one: uninstall the earlier version first (migrate it down to 0 while its own files are in place), then install this one. Nothing is carried over from the earlier installation.
+* Uninstalling (migrating the plugin down to 0) also removes the plugin's row in Redmine's settings.
+* GK Core Stuff 1.01.000 or later is required: the line Verification in an issue's history is registered in its register of history lines instead of overriding Redmine's helper. Without GK Core Stuff the line is Redmine's own, and a warning is written to the log.
+* README: the requirements are the GK plugins required and optional, without a list of versions to install together.
+
+### Fixed
+
+* With GK Compat older than 1.01.000 the REST API no longer fails with an error; the OAuth scopes are then not checked, as without GK Compat.
+
 ## 1.03.000 (2026-10-26)
 
 ### Changed

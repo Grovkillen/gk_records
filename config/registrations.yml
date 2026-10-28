@@ -10,9 +10,11 @@ waves: []
 surfaces: []
 color_roles: []
 records:
-  targets: []
+  targets:
+    - {key: feature, model: GkRecordsFeature}              # en deklarerad funktion, slås på och av under Administration, Funktioner
   note_kinds: []
-  event_kinds: []
+  event_kinds:
+    - {key: feature_switched, target: feature, label: label_gk_records_event_feature_switched}
   link_kinds:
     - {key: corrects, label: gk_records_link_corrects, directed: true, targets: [note]}
     - {key: partial_duplicate, label: gk_records_link_partial_duplicate, directed: false, targets: [issue]}
@@ -43,3 +45,5 @@ gis_columns: []         # gis: egna geometrikolumner för massdata {table, colum
 disk_areas: []          # filområden på disk (6.2c): {key, path eller setting + default, kind: content | byproduct | backup}; <attachments>, <redmine>, <plugin> ersätts
 appearances: {}         # fields layouts: utseenden per fälttyp {<field_format>: [{key, name, defaults: [show, edit, small], text}]}
 access_items: []        # access: uppgifter som bär en nivå {key, label, plugin}
+features:               # records Features (features.rb), registret för alla plugins funktioner; av från början
+  - {key: records.more_note_kinds, default: false, label: label_gk_feature_records_more_note_kinds, help: text_gk_feature_records_more_note_kinds}

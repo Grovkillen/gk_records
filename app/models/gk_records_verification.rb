@@ -5,7 +5,7 @@
 # Verification.set!, which writes the event; the row is never deleted.
 class GkRecordsVerification < ApplicationRecord
   self.table_name = 'gk_records_verifications'
-  # an instant with its zone (migration 013)
+  # an instant with its zone (migration 008)
   GkRecordsInstant.attributes!(self, :set_at)
 
   belongs_to :set_by, class_name: 'User', optional: true
