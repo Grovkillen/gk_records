@@ -43,15 +43,14 @@ module GkRecords
       false
     end
 
-    # On when a tracker has it or a plugin asked for it; off for a new installation (human test records_1021, the
-    # owner's choice "Av från början"; GkRecords::Features)
+    # On when a tracker has it or a plugin asked for it; off for a new installation (GkRecords::Features)
     def feature? = Features.on?('verification')
 
-    # The field's name from the locales (records_1021-SID-56: a name per installation is for a fields plugin later)
+    # The field's name from the locales (a name per installation is for a fields plugin later)
     def title = ::I18n.t(:label_gk_records_verification_status)
 
     # The statuses a reader can meet here: Verifierad only where a plugin reviews (signoff), so that nothing is said
-    # about a review where there is none (records_1021: "INTE beskriva sånt som kräver det pluginet")
+    # about a review where there is none
     def shown_statuses = reviewer ? STATUSES : MANUAL
 
     def row(obj)
@@ -230,8 +229,7 @@ module GkRecords
       end
     end
 
-    # On an issue the change also stands in its history, as core's own changes do (records_1021-SID-60, the owner's
-    # choice "Rad + skälet som anteckning"): a row in Ändrade egenskaper and the reason as the entry's note
+    # On an issue the change also stands in its history, as core's own changes do: a row in Ändrade egenskaper and the reason as the entry's note
     JOURNAL_PROPERTY = 'gk_records'
     JOURNAL_KEY = 'verification'
 
@@ -276,13 +274,13 @@ module GkRecords
             end
         return s if no_html
 
-        # the mark the page's script finds, so the entry's note is drawn as records' reason (records_1021-SID-71)
+        # the mark the page's script finds, so the entry's note is drawn as records' reason
         content_tag('span', s, class: 'gk-records-journal-verification', data: { reason_label: l(:label_gk_records_note_reason) })
       end
     end
 
-    # The entry's note beside the row is the reason: records' reason box, indented as the row, with Skäl before it
-    # (records_1021-SID-71, the owner's choice "Som records skälruta"); the note stays a note, so Anteckningar has it
+    # The entry's note beside the row is the reason: records' reason box, indented as the row, with Skäl before it;
+    # the note stays a note, so Anteckningar has it
     JOURNAL_SCRIPT = <<~JS
       (function () {
         var mark = function () {
@@ -377,8 +375,8 @@ module GkRecords
     end
 
     # ------------------------------------------------------------------ the tracker's own page
-    # The checkbox Verifieringsstatus on Administration > Trackers, New and Edit (records_1021-SID-28: "det måste ju vara
-    # under ärendetyp"). Core's tracker form has no hook, so the box is placed by script and the controller patch keeps
+    # The checkbox Verifieringsstatus on Administration > Trackers, New and Edit.
+    # Core's tracker form has no hook, so the box is placed by script and the controller patch keeps
     # the choice in records' setting verification_tracker_ids after the tracker is saved.
     def set_tracker!(tracker_id, on)
       id = tracker_id.to_i
@@ -414,27 +412,20 @@ module GkRecords
       # on every issue page, also when the row is no longer on for the tracker: earlier entries keep their look
       def view_issues_show_description_bottom(_context = {}) = javascript_tag(JOURNAL_SCRIPT)
 
-      def view_layouts_base_body_bottom(context = {})
-        c = context[:controller]
-        return '' unless c.is_a?(::TrackersController) && %w[new edit create update].include?(c.action_name) && User.current.admin?
+      # The tracker's check box Verifieringsstatus, at the end of the tracker's attribute box through core's hook there
+      # (view_trackers_form_bottom, gk_core_stuff's form_hooks, issue #44660); without that hook the box is not drawn
+      # and the trackers are chosen on records' settings page. Nothing on core's form is looked for.
+      def view_trackers_form_bottom(context = {})
+        return '' unless User.current.admin?
 
-        tracker = c.instance_variable_get(:@tracker)
+        tracker = context[:tracker]
         on = tracker&.id && Verification.tracker?(tracker.id)
-        javascript_tag(<<~JS)
-          (function () {
-            var form = document.querySelector('form#tracker_form, form.edit_tracker, form.new_tracker');
-            var box = form && form.querySelector('.box.tabular');
-            if (!box || form.querySelector('[name=gk_records_verification]')) return;
-            var p = document.createElement('p');
-            var label = document.createElement('label'); label.htmlFor = 'gk_records_verification'; label.textContent = #{Verification.title.to_json};
-            var hidden = document.createElement('input'); hidden.type = 'hidden'; hidden.name = 'gk_records_verification'; hidden.value = '0';
-            var cb = document.createElement('input'); cb.type = 'checkbox'; cb.name = 'gk_records_verification'; cb.value = '1';
-            cb.id = 'gk_records_verification'; cb.checked = #{on ? 'true' : 'false'};
-            var em = document.createElement('em'); em.className = 'info'; em.textContent = #{::I18n.t(:text_gk_records_verification_tracker).to_json};
-            p.appendChild(label); p.appendChild(hidden); p.appendChild(cb); p.appendChild(em);
-            box.appendChild(p);
-          })();
-        JS
+        content_tag('p', safe_join([
+                                     label_tag('gk_records_verification', Verification.title),
+                                     hidden_field_tag('gk_records_verification', '0', id: nil),
+                                     check_box_tag('gk_records_verification', '1', on, id: 'gk_records_verification'),
+                                     content_tag('em', ::I18n.t(:text_gk_records_verification_tracker), class: 'info')
+                                   ]))
       end
     end
 

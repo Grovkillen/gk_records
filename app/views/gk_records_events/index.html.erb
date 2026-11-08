@@ -1,16 +1,19 @@
 <% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
 <%# the project's tab (1.01.000) keeps its own address; the log under Administration and a target's events the plugin's %>
 <% events_path = ->(opts = {}) { @project ? project_gk_records_events_path(@project, opts) : gk_records_events_path(opts) } %>
+<% html_title(*[l(:label_gk_records_events), @target && GkRecords::Targets.label(@target)].compact) %>
 <h2><%= l(:label_gk_records_events) %><%= " » #{GkRecords::Targets.label(@target)}" if @target %></h2>
 <%= form_tag events_path.call, method: :get, class: 'gk-records-filter' do %>
   <%= hidden_field_tag 'target', params[:target] if params[:target].present? %>
   <label><%= l(:label_gk_records_kind) %> <%= select_tag 'kind', options_for_select([['', '']] + GkRecords::Kinds.of(:event).map { |k| [k.label, k.key] }, params[:kind]) %></label>
   <label><%= l(:label_gk_records_date_from) %> <%= date_field_tag 'from', params[:from] %></label>
   <label><%= l(:label_gk_records_date_to) %> <%= date_field_tag 'to', params[:to] %></label>
+  <label><%= l(:label_search) %> <%= text_field_tag 'q', params[:q].to_s, id: 'gk-records-events-q', size: 30 %></label>
   <%= submit_tag l(:button_apply), name: nil %>
-  <%# core's Rensa beside Verkställ, only when a filter is set; the target stays, it is the page, not a filter (records_1021-SID-29) %>
+  <%# core's Rensa beside Verkställ, only when a filter is set; the target stays, it is the page, not a filter %>
   <% if @filtered %><%= link_to sprite_icon('reload', l(:button_clear)), events_path.call(target: params[:target].presence), class: 'icon icon-reload' %><% end %>
 <% end %>
+<% if @search_cut %><p class="info"><%= l(:text_gk_records_events_search_cut, max: GkRecords::EventSearch::MAX_SEEN) %></p><% end %>
 <% if @events.any? %>
 <table class="list gk-records-events-table">
   <thead><tr><th><%= l(:field_created_on) %></th><th><%= l(:label_gk_records_kind) %></th><th><%= l(:label_gk_records_target) %></th>
@@ -22,7 +25,7 @@
       <td class="kind"><%= gk_records_event_kind_tag(e.kind) %><%= gk_records_origin_badge(e.origin) %></td>
       <td class="target"><%= gk_records_ref_link(e.target_type, e.target_id) %></td>
       <td class="user"><%= gk_records_who(e) %></td>
-      <%# long details fold so the row stays short; the reason always shows in full (records_1021-SID-26) %>
+      <%# long details fold so the row stays short; the reason always shows in full %>
       <td class="text"><% if (d = gk_records_details(e, fold: true)).present? %><ul class="gk-records-diff"><%= d %></ul><% end %>
         <%= gk_records_reason(e) %></td>
     </tr>
@@ -31,6 +34,6 @@
 </table>
 <%# 1.01.000: the same rows as CSV, with the page's filters, as core's "Also available in" %>
 <% other_formats_links do |f| %>
-  <%= f.link_to 'CSV', url: params.permit(:target, :kind, :user_id, :from, :to).to_h.merge(project_id: @project&.identifier).compact %>
+  <%= f.link_to 'CSV', url: params.permit(:target, :kind, :user_id, :from, :to, :q).to_h.merge(project_id: @project&.identifier).compact %>
 <% end %>
 <% else %><p class="nodata"><%= l(:label_no_data) %></p><% end %>

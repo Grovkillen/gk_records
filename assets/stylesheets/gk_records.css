@@ -1,4 +1,4 @@
-/* gk_records: logical properties only (5.22); core's colour variables */
+/* gk_records: logical properties only; core's colour variables */
 .gk-records-list { margin-block: 1em; }
 .gk-records-tabs ul { margin-block-end: 0; }
 .gk-records-pane { padding-block: 0.5em; }
@@ -95,62 +95,64 @@ tr.gk-records-docimp-already td { color: var(--oc-gray-7); }
 .gk-records-docimp-again { display: block; margin-block-start: 0.3em; font-weight: normal; }
 .gk-records-document-origin { margin-block: 0.3em 0.8em; }
 .gk-records-document-origin .gk-records-reading-origin { margin-inline-start: 0.4em; }
-/* Administration > Skäl: one table per plugin with the same columns, so that the columns stand in one line down the page
-   (human test fritt_1017_702-SID-15); the mode, the reason and Save keep to one row */
+/* Administration > Skäl: one table per plugin with the same columns, so that the columns stand in one line down the page;
+   the mode, the reason and Save keep to one row */
 table.gk-records-reasons { table-layout: fixed; }
 table.gk-records-reasons col.gk-records-c-place { inline-size: 34%; }
 table.gk-records-reasons col.gk-records-c-default { inline-size: 12%; }
 table.gk-records-reasons col.gk-records-c-now { inline-size: 10%; }
 table.gk-records-reasons col.gk-records-c-mode { inline-size: 44%; }
 table.gk-records-reasons td.buttons form { display: flex; gap: 0.4em; align-items: center; justify-content: flex-start; }
-/* a place locked by the whole installation: the greyed choice and its note in the same row, at the start (records_1022-SID-02) */
+/* a place locked by the whole installation: the greyed choice and its note in the same row, at the start */
 table.gk-records-reasons td.buttons .gk-records-reason-locked { display: flex; gap: 0.6em; align-items: center; justify-content: flex-start; }
 table.gk-records-reasons td.buttons .gk-records-reason-locked em.info { display: inline; margin: 0; }
-/* Save on a row is dimmed and off until the row's mode is changed (SID-16); the title says why */
+/* Save on a row is dimmed and off until the row's mode is changed; the title says why */
 .gk-records-reason-mode-form input[type=submit]:disabled { opacity: 0.45; cursor: default; }
-/* human test records_1021: the headings stand as their cells do (SID-05, 20, 22, 27); core centres th and most td */
+/* the headings stand as their cells do; core centres th and most td */
 table.gk-records-events-table th, table.gk-records-links-table th, table.gk-records-assess-table th,
 table.gk-records-reasons th, table.gk-records-readings th { text-align: start; }
 table.gk-records-readings td, table.gk-records-reasons td { text-align: start; }
-/* a group's heading in the Links tab has no line under it (SID-10; core draws one under every h4) */
+/* a group's heading in the Links tab has no line under it (core draws one under every h4) */
 h4.gk-records-group { border-block-end: 0; }
-/* the status stands in the middle of the row's line (SID-09). Core lifts every badge 4px (.badge inset-block-end,
-   meant for headings), which put the status 3-4px above the label and the cell's middle (records_1021-SID-09, 64);
+/* the status stands in the middle of the row's line. Core lifts every badge 4px (.badge inset-block-end,
+   meant for headings), which put the status 3-4px above the label and the cell's middle;
    measured in the browser: the box from the line's top, the badge on the label's middle */
 .gk-records-verification-box { align-items: center; }
 .badge.gk-records-verification { inset-block-end: 0; }
 div.issue .gk-records-verification-row .gk-records-verification-box { vertical-align: top; }
-/* in an assessment's cell a block as wide as its text, so the cell's middle is the badge's (SID-21, 51, 64) */
+/* in an assessment's cell a block as wide as its text, so the cell's middle is the badge's */
 td.gk-records-verification-cell .badge.gk-records-verification { display: block; inline-size: fit-content; margin-block: 0; inset-block-end: 0; }
 /* Använd, Ändra and × as high as the form's Save, whatever the theme makes it (the script sets --gk-reason-btn from
-   Save's height), × square, all on Save's middle (records_1021-SID-59, 65) */
+   Save's height), × square, all on Save's middle */
 .gk-records-reason-commit, .gk-records-reason-change { box-sizing: border-box; block-size: var(--gk-reason-btn, auto); vertical-align: middle; }
 .gk-records-reason-close { box-sizing: border-box; inline-size: var(--gk-reason-btn, 1.6em); block-size: var(--gk-reason-btn, 1.6em); padding: 0;
   font-size: 1.25em; line-height: 1; vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
-/* an event's details beyond the first two are hidden in the same list until "Visa alla" (SID-26) */
+/* an event's details beyond the first two are hidden in the same list until "Visa alla" */
 ul.gk-records-diff li.gk-records-more-item { list-style: none; }
 a.gk-records-show-all { font-size: 0.9em; }
-/* records_1021 second round: the points of an event's changes stand at the cell's edge, no indent (SID-35) */
+/* the points of an event's changes stand at the cell's edge, no indent */
 ul.gk-records-diff { padding-inline-start: 0; margin-inline-start: 0; list-style-position: inside; }
 /* the status row on an issue: core's value box and the row group around it (.splitcontent) both scroll (overflow auto),
-   which clipped the badge and hid Ändra status's box in a scrollbar (SID-09, 32, 39, 40) */
+   which clipped the badge and hid Ändra status's box in a scrollbar */
 div.issue .attribute.gk-records-verification-row .value { overflow: visible; }
 div.issue .splitcontent:has(.gk-records-verification-row) { overflow: visible; }
-/* Ändra status opens as a box over the page, so the badge beside it stays where it is (SID-34) */
+/* Ändra status opens as a box over the page, so the badge beside it stays where it is */
 .gk-records-verification-box { position: relative; }
 .gk-records-verification-edit[open] > .gk-records-verification-form { position: absolute; inset-inline-start: 0; inset-block-start: 100%; z-index: 20;
   margin-block-start: 0.2em; padding: 0.5em; background: var(--gk-theme-surface, Canvas); border: 1px solid var(--oc-gray-4, #ced4da);
   border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); white-space: nowrap; inline-size: max-content; flex-wrap: nowrap; }
-/* the reason written and used: shown as text with Ändra and ×, the field closed (SID-31, 38) */
+/* the reason written and used: shown as text with Ändra and ×, the field closed */
 .gk-records-reason-used { display: inline-flex; align-items: center; gap: 0.4em; vertical-align: middle; }
 .gk-records-reason-used-text { font-style: italic; }
-/* what the field hides stays hidden: a display above would show it beside the field (SID-46, 52, 53) */
+/* what the field hides stays hidden: a display above would show it beside the field */
 .gk-records-reason-wrap [hidden], .gk-records-reason-wrap[hidden], .gk-records-reason-box[hidden], .gk-records-reason-used[hidden],
 .gk-records-setting-reason [hidden] { display: none !important; }
 /* The shared reason field. Its buttons are core's submit buttons, with core's look and hover. Folded, the link "Add a
    reason" stands as core's icon links, in the middle of Save's line. Open, the field and its buttons are one group in
    a light frame in core's colours, which wraps inside its cell or field instead of running out of it: the line it
-   stands on may break before it even where the cell keeps its buttons on one line. */
+   stands on may break before it even where the cell keeps its buttons on one line. The parent is the calling
+   plugin's own element (the field is drawn only in GK plugins' own forms; the settings pages have their own field),
+   never one of core's. */
 :has(> .gk-records-reason-wrap) { white-space: normal; }
 .gk-records-reason-wrap { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3em; vertical-align: middle;
   max-inline-size: 100%; white-space: normal; }
@@ -172,23 +174,21 @@ div.issue .splitcontent:has(.gk-records-verification-row) { overflow: visible; }
 .gk-records-setting-reason-box > textarea { resize: vertical; max-inline-size: 100%; margin: 0; }
 .gk-records-setting-reason-box > .gk-records-reason-used { min-block-size: var(--gk-reason-btn, 28px); }
 .gk-records-setting-reason-box > .gk-records-reason-hint { flex-basis: 100%; }
-/* the text and the badges stand in the middle of their rows (SID-49, 50, 51) */
+/* the text and the badges stand in the middle of their rows */
 table.gk-records-links-table td, table.gk-records-assess-table td { vertical-align: middle; }
 table.gk-records-assess-table .gk-records-basis { margin-block: 0; }
-/* Lägg till koppling: the hits to choose one of, the only kind as text (SID-43, 47) */
-/* the hits: a list in the form's own column, with its heading where core puts a label (SID-61) */
+/* Lägg till koppling: the hits to choose one of, the only kind as text */
+/* the hits: a list in the form's own column, with its heading where core puts a label */
 .tabular .gk-records-hits-row { padding-block: 3px; padding-inline: 180px 0; clear: inline-start; }
 .tabular .gk-records-hits-label { float: inline-start; margin-inline-start: -180px; inline-size: 175px; text-align: end; font-weight: bold; line-height: 24px; }
 ul.gk-records-hits { list-style: none; margin: 0; padding: 0; }
 ul.gk-records-hits li label.block { line-height: 24px; cursor: pointer; }
 ul.gk-records-hits li input[type=radio] { margin-inline-end: 0.4em; vertical-align: middle; }
-/* the only kind as text, on the line of its label (SID-54: the label's line height, 24px) */
+/* the only kind as text, on the line of its label (the label's line height, 24px) */
 .gk-records-only-choice { display: inline-block; line-height: 24px; }
-/* the history entry of a verification change: its note as records' reason, indented as the row (records_1021-SID-71) */
+/* the history entry of a verification change: its note as records' reason, indented as the row */
 div.journal div.wiki.gk-records-journal-reason { margin-inline-start: 2.5em; }
-/* Skäl right above its text: core's paragraph margin is taken away from the first one (records_1021-SID-71) */
-div.journal div.wiki.gk-records-journal-reason > p:first-of-type { margin-block-start: 0.1em; }
-/* narrow pages, at core's breakpoint (records_1021-SID-66, 67, 68): the links' rows stack, the thing and the reason on
+/* narrow pages, at core's breakpoint: the links' rows stack, the thing and the reason on
    lines of their own; the hits' heading stands above the list as core's labels do, the radios their own size */
 @media screen and (max-width: 899px) {
   table.gk-records-links-table, table.gk-records-links-table tbody { display: block; }
@@ -198,7 +198,7 @@ div.journal div.wiki.gk-records-journal-reason > p:first-of-type { margin-block-
   table.gk-records-links-table td.type { order: 1; }
   table.gk-records-links-table td.name { order: 2; flex: 1 1 0; min-inline-size: 12em; }
   /* Makulera last on the first line, so it stands in the row's top right corner on the thing's middle, whatever its
-     height (records_1021-SID-72) */
+     height */
   table.gk-records-links-table td.buttons { order: 3; margin-inline-start: auto; }
   table.gk-records-links-table td.comments { order: 4; flex-basis: 100%; }
   table.gk-records-links-table td.status { order: 5; }

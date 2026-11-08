@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module GkRecordsHelper
-  # Light Markdown (5.6c): core's formatter, then only the light level is kept. Headings become plain text,
+  # Light Markdown: core's formatter, then only the light level is kept. Headings become plain text,
   # images and HTML go, tables go; emphasis, code, links, lists, line breaks, mentions and #refs stay.
   LIGHT_TAGS = %w[p br strong em code a ul ol li].freeze
 
@@ -139,7 +139,7 @@ module GkRecordsHelper
     st = status || row&.status
     return '' if st.nil? || st == GkRecords::Verification::NONE
 
-    # who set it, when, and why (records_1021-SID-41); a person the reader may not see is not named (Visibility)
+    # who set it, when, and why; a person the reader may not see is not named (Visibility)
     title = nil
     if row
       by = row.set_by_id && ::User.find_by(id: row.set_by_id)
@@ -348,7 +348,7 @@ module GkRecordsHelper
 
   # A private field the reader may not see (GkRecordsEvent#hidden_fields) is named with the text for a hidden value,
   # never its value.
-  # fold: true (the events page, records_1021-SID-26): a row stays short, the first two entries show and the rest fold
+  # fold: true (the events page): a row stays short, the first two entries show and the rest fold
   # in a <details> the reader opens with a click; fewer than two when the first ones are long already (300 characters)
   def gk_records_details(event, fold: false)
     d = event.change_details(User.current)
@@ -356,26 +356,29 @@ module GkRecordsHelper
     return '' if d.blank? && hidden.empty?
 
     found = GkRecords::Ref.principals(d)
-    # the people in the changes are counted for the mark among those who see the event's thing (records_1021-SID-63)
+    # the people in the changes are counted for the mark among those who see the event's thing
     on = gk_records_event_thing(event)
-    rows = d.map do |field, change|
+    # each row's content; the list items are made from it below, so a folded row gets its own attributes when it is
+    # made, never by rewriting the markup
+    items = d.map do |field, change|
       if change.is_a?(Array) && change.size == 2
-        content_tag('li', safe_join([content_tag('strong', field), ': ', content_tag('del', gk_records_value(change[0], found, on: on)), ' ', content_tag('ins', gk_records_value(change[1], found, on: on))]))
+        safe_join([content_tag('strong', field), ': ', content_tag('del', gk_records_value(change[0], found, on: on)), ' ', content_tag('ins', gk_records_value(change[1], found, on: on))])
       else
-        content_tag('li', safe_join([content_tag('strong', field), ': ', gk_records_value(change, found, on: on)]))
+        safe_join([content_tag('strong', field), ': ', gk_records_value(change, found, on: on)])
       end
     end
-    rows += hidden.map { |field| content_tag('li', safe_join([content_tag('strong', field), ': ', content_tag('span', l(:text_gk_records_hidden_value), class: 'gk-records-hidden')])) }
+    items += hidden.map { |field| safe_join([content_tag('strong', field), ': ', content_tag('span', l(:text_gk_records_hidden_value), class: 'gk-records-hidden')]) }
+    rows = items.map { |i| content_tag('li', i) }
     return safe_join(rows) unless fold
 
-    n = [rows.size, 2].min
-    n -= 1 while n > 1 && rows.first(n).sum { |r| strip_tags(r.to_s).length } > 300
-    rest = rows.drop(n)
+    n = [items.size, 2].min
+    n -= 1 while n > 1 && items.first(n).sum { |r| strip_tags(r.to_s).length } > 300
+    rest = items.drop(n)
     return safe_join(rows) if rest.empty?
 
-    # one list (records_1021-SID-26, "inte att det liksom blir två listor"): the rest are in the same list, hidden, and
+    # one list: the rest are in the same list, hidden, and
     # "Visa alla (n)" shows them where they stand
-    hidden_rows = rest.map { |r| r.to_s.sub(/\A<li/, '<li hidden class="gk-records-more-row"').html_safe }
+    hidden_rows = rest.map { |i| content_tag('li', i, hidden: true, class: 'gk-records-more-row') }
     show = link_to(l(:text_gk_records_show_all, count: rows.size), '#', class: 'gk-records-show-all',
                    onclick: "var u=this.closest('ul');u.querySelectorAll('li.gk-records-more-row').forEach(function(x){x.hidden=false;});this.parentNode.remove();return false;")
     safe_join(rows.first(n) + hidden_rows + [content_tag('li', show, class: 'gk-records-more-item')])
@@ -408,7 +411,7 @@ module GkRecordsHelper
 
     place = r.find(key)
     need = require.nil? ? mode == 'required' : require
-    # records_1021-SID-30: no suggestions until a plugin gives a search field of the select2 kind (Reasons.suggest?)
+    # no suggestions until a plugin gives a search field of the select2 kind (Reasons.suggest?)
     sug = r.suggest? ? r.suggestions(key) : { latest: nil, list: [] }
     list_id = sug[:list].any? ? "gk-records-rs-#{key.to_s.tr('.', '-')}-#{SecureRandom.hex(3)}" : nil
     ph = sug[:latest] ? l(:text_gk_records_reason_suggest, text: truncate(sug[:latest], length: 60)) : (placeholder || l(:text_gk_records_reason_write))
@@ -481,10 +484,23 @@ module GkRecordsHelper
         }, true);
         var SUBMIT = 'input[type=submit], button[type=submit], button:not([type])';
         var after = function (w, b) { return !!(w.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING); };
-        // the button that saves the field's form in the same row: the last one after the field in its own element, or
-        // else the button (or the paragraph of buttons) that comes right after the field's element, up to the form
+        // The field is drawn only in GK plugins' own forms (every caller is a plugin's own view), so what is read here
+        // is the calling plugin's own markup, never core's. A Save the caller marks (data-gk-reason-save, the way for
+        // a form whose markup the caller does not own) is taken first; the form's default button, as HTML defines it
+        // (its first submit button, here the first that is not the field's own), stands for Save otherwise.
+        var markedSave = function (form) {
+          return form ? Array.prototype.filter.call(form.querySelectorAll('[data-gk-reason-save]'), function (b) { return b.form === form; })[0] || null : null;
+        };
+        var defaultSave = function (form) {
+          return markedSave(form) || Array.prototype.filter.call(form.querySelectorAll(SUBMIT), function (x) { return x.form === form && !x.closest('.gk-records-reason-wrap'); })[0] || null;
+        };
+        // the button that saves the field's form in the same row: the marked one, else the last one after the field in
+        // its own element, or else the button (or the paragraph of buttons) that comes right after the field's
+        // element, up to the form (the caller's own markup)
         var saveButton = function (w, f) {
           var form = f && f.form; if (!form) return null;
+          var marked = markedSave(form);
+          if (marked) return marked;
           var mine = function (b) { return b.form === form && !w.contains(b); };
           var row = w.parentElement;
           var own = row ? Array.prototype.filter.call(row.querySelectorAll(SUBMIT), function (b) { return mine(b) && after(w, b); }) : [];
@@ -571,17 +587,14 @@ module GkRecordsHelper
           if (box && box.hidden) return false;
           return !!box || p.f.required || p.f.value.trim() !== '';
         };
-        // the field's buttons as high as the form's Save, whatever the theme makes it (records_1021-SID-59, 65); a Save
+        // the field's buttons as high as the form's Save, whatever the theme makes it; a Save
         // not shown yet (Ändra status closed) has no height, and is measured again when the field opens. Save itself
         // is never turned off for the reason: it takes what is written (stop)
         var size = function (form) {
           if (!form) return;
           var wraps = form.querySelectorAll('.gk-records-reason-wrap');
-          var saveH = 0;
-          Array.prototype.some.call(form.querySelectorAll(SUBMIT), function (b) {
-            if (b.closest('.gk-records-reason-wrap') || b.form !== form || !b.offsetHeight) return false;
-            saveH = b.offsetHeight; return true;
-          });
+          var save = defaultSave(form);
+          var saveH = save ? save.offsetHeight : 0;
           if (saveH) Array.prototype.forEach.call(wraps, function (w) { w.style.setProperty('--gk-reason-btn', saveH + 'px'); });
         };
         var formOf = function (w) { var p = parts(w); return p.f && p.f.form; };
@@ -643,14 +656,19 @@ module GkRecordsHelper
           parts(lacking[0]).f.focus();
           return true;
         };
+        // core marks a form sent (data-submitted) and refuses the next send, also when this one was stopped here: the
+        // mark goes after core's handler, so that Save works once the reason is written
         document.addEventListener('submit', function (e) {
-          if (stop(e.target)) e.preventDefault();
+          var form = e.target;
+          if (!stop(form)) return;
+          e.preventDefault();
+          setTimeout(function () { form.removeAttribute('data-submitted'); }, 0);
         }, true);
         // Enter in another field of the form clicks the form's first submit button, which may be one of the field's
         // (a field that stands before Save): the form is sent as by its own Save instead
         var implicit = function (b) {
           var form = b.form; if (!form) return;
-          var save = Array.prototype.filter.call(form.querySelectorAll(SUBMIT), function (x) { return x.form === form && !x.closest('.gk-records-reason-wrap'); })[0];
+          var save = defaultSave(form);
           if (stop(form) || !save || save.disabled) return;
           if (form.requestSubmit) form.requestSubmit(save); else save.click();
         };

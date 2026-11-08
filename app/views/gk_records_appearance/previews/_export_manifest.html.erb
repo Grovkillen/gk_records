@@ -1,0 +1,7 @@
+<%# Visa for the choice with manifest, drawn only from GK GUI Stuff's page Appearance with its helpers: Redmine's words
+    "Also available in" with a format as a still picture; with the setting, core's zip icon beside the format. Not core's
+    p.other-formats, since the real script on the page would add its link to the picture too. row: the setting %>
+<% formats = ->(extra) { content_tag(:p, safe_join([l(:label_export_to), content_tag(:a, 'PDF', class: 'pdf'), extra].compact, ' ')) } %>
+<% zip = content_tag(:a, sprite_icon('application-zip'), class: 'gk-records-manifest-link icon-only', title: "#{l(:label_gk_records_with_manifest)}: #{l(:text_gk_records_with_manifest)}") %>
+<% still = ->(html) { content_tag(:div, html, class: 'gk-gui-stuff-sg-still', inert: true) } %>
+<%= gk_gui_stuff_appearance_preview(row, off: still.call(formats.call(nil)), on: still.call(formats.call(zip))) %>

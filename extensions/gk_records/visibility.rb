@@ -181,8 +181,8 @@ module GkRecords
 
     # How many counted users may not see the person (0 for none, for nobody and for core's built-in principals).
     # on: the thing the name stands on (an issue, a link's thing, an event's target): only those who may see that thing
-    # count, so the mark says that others reading this see "en person" where the reader sees a name (records_1021-SID-63,
-    # the owner's choice "De som ser saken"). Without a thing, every counted user in the installation.
+    # count, so the mark says that others reading this see "en person" where the reader sees a name.
+    # Without a thing, every counted user in the installation.
     def hidden_from_count(principal, viewer = nil, on: nil)
       return 0 if principal.nil? || builtin?(principal)
 

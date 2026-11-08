@@ -22,7 +22,7 @@ module GkRecords
                                               linkable: ->(i, user) { i.attributes_editable?(user) })
     end
 
-    # The tabs say their number (setting tab_counts, off by default; records_1021-SID-19)
+    # The tabs say their number (setting tab_counts, off by default)
     def self.tab_counts? = (::Setting.plugin_gk_records.is_a?(Hash) ? ::Setting.plugin_gk_records['tab_counts'].to_s : '') == '1'
 
     module HelperPatch
@@ -30,9 +30,9 @@ module GkRecords
         tabs = super
         issue = @issue
         return tabs unless issue && ::GkRecords::Targets.find('issue') && ::GkRecords::Targets.visible?(issue)
-        # a tab only while its function is on (records_1021; GkRecords::Features), and only when the issue has links: an
-        # issue without one gets the row Lägg till koppling in the issue's actions menu (IssueHooks), which opens the
-        # issue with the tab selected, and the tab is there then for one who may link (gui_stuff_1023-SID-41)
+        # a tab only while its function is on (GkRecords::Features), and only when the issue has links: an
+        # issue without one gets the row Lägg till koppling in the issue's actions menu (IssueHooks, through core's hook there), which opens the
+        # issue with the tab selected, and the tab is there then for one who may link
         links = ::GkRecords::Features.on?('links') &&
                 (::GkRecordsLink.active.touching('issue', issue.id).exists? || (params[:tab].to_s == TAB && ::GkRecords::Targets.linkable?(issue)))
         assessed = ::GkRecords::Features.on?('assessments') && ::GkRecordsAssessment.for_target('issue', issue.id).exists?
@@ -56,36 +56,39 @@ module GkRecords
     end
   end
 
-  # Nothing at the top of the issue (the owner, human test records_1021-SID-19: "Vi ska inte ha det här alls i ärendens
-  # huvud ... flikarna nere räcker"). With the setting tab_counts the tabs Kopplingar and Bedömningar say their
+  # Nothing at the top of the issue. With the setting tab_counts the tabs Kopplingar and Bedömningar say their
   # number, "Kopplingar (3)": core writes a tab's label from a key, so the number is put after it on the page.
   class IssueHooks < Redmine::Hook::ViewListener
     def view_issues_show_description_bottom(context = {})
       issue = context[:issue]
       return '' unless issue && Targets.find('issue') && Targets.visible?(issue)
 
-      safe_join([add_link_row(issue), tab_counts(issue)].compact)
+      # the row Lägg till koppling in the issue itself only when core's actions menu had no hook to draw it in
+      row = context[:controller]&.request&.env&.[]('gk_records.link_add') ? nil : add_link_row(issue)
+      safe_join([row && content_tag('p', row, class: 'gk-records-link-add-row'), tab_counts(issue)].compact)
     end
 
     # An issue without links has no tab Kopplingar; one who may link gets the row Lägg till koppling in the issue's
-    # actions menu (core's actions_dropdown in .contextual, which has no hook), and it opens the issue with the tab
+    # actions menu, drawn through core's hook in that menu (view_issues_show_actions_menu, gk_core_stuff's
+    # action_menus, issue #44660) in every place core draws the menu; it opens the issue with the tab. Without that
+    # hook the row stands under the description. Nothing on core's page is looked for.
+    def view_issues_show_actions_menu(context = {})
+      issue = context[:issue]
+      return '' unless issue && Targets.find('issue') && Targets.visible?(issue)
+
+      row = add_link_row(issue)
+      return '' unless row
+
+      context[:controller]&.request&.env&.store('gk_records.link_add', true)
+      row
+    end
+
     def add_link_row(issue)
       return nil unless ::GkRecords::Features.on?('links') && Targets.linkable?(issue)
       return nil if ::GkRecordsLink.active.touching('issue', issue.id).exists?
 
-      row = link_to(sprite_icon('link', l(:button_gk_records_link_add)), issue_path(issue, tab: IssueLinks::TAB),
-                    class: 'icon icon-link gk-records-link-add')
-      javascript_tag(<<~JS)
-        (function () {
-          var row = #{row.to_json};
-          var put = function () {
-            document.querySelectorAll('#content > .contextual .drdn-items').forEach(function (items) {
-              if (!items.querySelector('.gk-records-link-add')) items.insertAdjacentHTML('afterbegin', row);
-            });
-          };
-          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', put); else put();
-        })();
-      JS
+      link_to(sprite_icon('link', l(:button_gk_records_link_add)), issue_path(issue, tab: IssueLinks::TAB),
+              class: 'icon icon-link gk-records-link-add')
     end
 
     def tab_counts(issue)

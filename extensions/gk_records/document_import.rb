@@ -17,7 +17,7 @@ module GkRecords
   # * run: one reading for the whole list (route file, format ZIP, the zip's name, size and SHA-256 but not the zip, the
   #   list as its manifest with the document each row made), and per row a core Document in the target
   #   project with the file as a core attachment; the document's fields point to the reading with the file name as the
-  #   source's id (origin imported, 5.17), its creation is the event created (origin import) with the edition, the date,
+  #   source's id (origin imported), its creation is the event created (origin import) with the edition, the date,
   #   the source text and the file's SHA-256 in the details, and a row with a källa gets the link supported_by to the
   #   Källa issue. A row already there is skipped unless the person chose to add it as a new document.
   # Who may: core's add_documents in the project where the import is made and in every target project. Records asks no
@@ -461,9 +461,34 @@ module GkRecords
   end
 
   # The document page shows where a read-in document came from (the reading, and the source it cites); the Dokument tab
-  # gets the link Läs in dokument for whoever may add documents. Core has no hook on those pages, so the line is
-  # rendered at the end of the content and moved in place by a small script (without it, it stays at the end).
+  # gets the link Läs in dokument for whoever may add documents. The link stands in core's button row through its hook
+  # there (view_documents_index_contextual, gk_core_stuff's action_menus, issue #44660). The origin stands under the
+  # document's category, date and custom fields through the hook there (view_documents_show_details_bottom,
+  # gk_core_stuff's more_view_hooks). Nothing on core's page is looked for or moved: where a page does not call a hook,
+  # its part stands at the end of the content (view_layouts_base_content, which core draws after the page).
   class DocumentImportHooks < Redmine::Hook::ViewListener
+    def view_documents_show_details_bottom(context = {})
+      doc = context[:document]
+      return '' unless doc
+
+      context[:controller]&.request&.env&.store('gk_records.docimp_origin', true)
+      context[:hook_caller].render(partial: 'gk_records_document_imports/origin', locals: { document: doc })
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] document import hook: #{e.class} #{e.message}")
+      ''
+    end
+
+    def view_documents_index_contextual(context = {})
+      project = context[:project]
+      return '' unless project && User.current.allowed_to?(:add_documents, project)
+
+      context[:controller]&.request&.env&.store('gk_records.docimp_link', true)
+      context[:hook_caller].render(partial: 'gk_records_document_imports/link', locals: { project: project })
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] document import hook: #{e.class} #{e.message}")
+      ''
+    end
+
     def view_layouts_base_content(context = {})
       c = context[:controller]
       return '' unless c.is_a?(::DocumentsController)
@@ -471,11 +496,15 @@ module GkRecords
       view = context[:hook_caller]
       case c.action_name
       when 'show'
+        return '' if c.request.env['gk_records.docimp_origin']
+
         doc = c.instance_variable_get(:@document)
         doc ? view.render(partial: 'gk_records_document_imports/origin', locals: { document: doc }) : ''
       when 'index'
         project = c.instance_variable_get(:@project)
-        project && User.current.allowed_to?(:add_documents, project) ? view.render(partial: 'gk_records_document_imports/link', locals: { project: project }) : ''
+        return '' if c.request.env['gk_records.docimp_link'] || !(project && User.current.allowed_to?(:add_documents, project))
+
+        content_tag('p', view.render(partial: 'gk_records_document_imports/link', locals: { project: project }), class: 'gk-records-docimp-row')
       else ''
       end
     rescue StandardError => e

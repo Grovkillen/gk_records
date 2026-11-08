@@ -15,17 +15,17 @@
 <p><label for="settings_mark_restricted_people"><%= l(:field_gk_records_mark_restricted_people) %></label>
   <%= hidden_field_tag 'settings[mark_restricted_people]', '0', id: nil %>
   <%= check_box_tag 'settings[mark_restricted_people]', '1', settings['mark_restricted_people'].to_s != '0', id: 'settings_mark_restricted_people' %>
-  <%# where it is decided: core's role setting, with the way there (records_1021-SID-58, 63, 70) %>
+  <%# where it is decided: core's role setting, with the way there %>
   <em class="info"><%= l(:text_gk_records_mark_restricted_people, setting: content_tag('strong', l(:field_users_visibility)),
                           roles: link_to(l(:label_role_and_permissions), roles_path), members: l(:label_users_visibility_members_of_visible_projects)).html_safe %></em></p>
-<%# the number on the tabs Kopplingar and Bedömningar, for the whole installation (records_1021-SID-19) %>
+<%# the number on the tabs Kopplingar and Bedömningar, for the whole installation %>
 <p><label for="settings_tab_counts"><%= l(:field_gk_records_tab_counts) %></label>
   <%= hidden_field_tag 'settings[tab_counts]', '0', id: nil %>
   <%= check_box_tag 'settings[tab_counts]', '1', settings['tab_counts'].to_s == '1', id: 'settings_tab_counts' %>
   <em class="info"><%= l(:text_gk_records_tab_counts) %></em></p>
 </fieldset>
-<%# The functions (GkRecords::Features): each with its switch, what it is for, and who turns it on or would use it
-    (records_1021, ALLMÄNT); off hides the pages, the menu rows and the tabs, and keeps what is kept %>
+<%# The functions (GkRecords::Features): each with its switch, what it is for, and who turns it on or would use it;
+    off hides the pages, the menu rows and the tabs, and keeps what is kept %>
 <% f = GkRecords::Features %>
 <% features = settings['features'].is_a?(Hash) ? settings['features'] : {} %>
 <fieldset class="box tabular"><legend><%= l(:label_gk_records_features) %></legend>
@@ -39,11 +39,11 @@
       <% if by.any? %><br><%= l(:text_gk_records_feature_on_by, plugins: by.map { |p| f.name_of(p) }.join(', ')) %>
       <% elsif (gone = f.missing_users(k)).any? %><br><%= l(:text_gk_records_feature_unused, plugins: gone.map { |p| f.name_of(p) }.join(', ')) %><% end %></em></p>
 <% end %>
-<%# Verification status: on when a tracker has it, chosen on the tracker's own page (records_1021-SID-28); its name from
-    the locales (records_1021-SID-56: renaming belongs to a fields plugin later) %>
+<%# Verification status: on when a tracker has it, chosen on the tracker's own page; its name from
+    the locales (renaming belongs to a fields plugin later) %>
 <% v = GkRecords::Verification %>
 <p><label><%= l(:label_gk_records_feature_verification) %></label>
-  <%# the trackers' names stand out from the sentence (records_1021-SID-69) %>
+  <%# the trackers' names stand out from the sentence %>
   <span><%= v.tracker_ids.any? ? l(:text_gk_records_verification_on_trackers, trackers: safe_join(Tracker.where(id: v.tracker_ids).sorted.map { |t| content_tag('strong', t.name) }, ', ')).html_safe : l(:text_gk_records_verification_off) %>
     <%= link_to l(:label_tracker_plural), trackers_path %></span>
   <em class="info"><%= l(v.reviewer ? :text_gk_records_feature_verification_review : :text_gk_records_feature_verification) %></em></p>
@@ -69,7 +69,7 @@
   <em class="info"><%= l(:text_gk_records_export_log_info) %></em></p>
 </fieldset>
 <%# The registered targets as core's list: one row per sort of thing, who registered it and which event and link kinds
-    may be used on it, so that what is a target is seen at once (icons_1025-SID-24) %>
+    may be used on it, so that what is a target is seen at once %>
 <%# The cells give the number of kinds, their names in the tooltip; the link kinds that go on every target are named
     once under the list instead of on every row %>
 <% kinds = GkRecords::Kinds.all.values %>

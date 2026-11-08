@@ -1,5 +1,5 @@
-# config/registrations.yml: vad pluginet lägger i de gemensamma lagren
-# (miljömanifestet 8.1). Tomma listor betyder ingenting där; nycklarna
+# config/registrations.yml: vad pluginet lägger i de gemensamma lagren.
+# Tomma listor betyder ingenting där; nycklarna
 # får inte saknas. Fylls när pluginet byggs, ur manifestets Registreringar.
 permissions: []
 menu: []
@@ -12,9 +12,12 @@ color_roles: []
 records:
   targets:
     - {key: feature, model: GkRecordsFeature}              # en deklarerad funktion, slås på och av under Administration, Funktioner
+    - {key: appearance_setting, model: GkRecordsAppearanceSetting}   # an appearance setting (the instance's row) or a person's own choice
   note_kinds: []
   event_kinds:
     - {key: feature_switched, target: feature, label: label_gk_records_event_feature_switched}
+    - {key: appearance_setting_changed, target: appearance_setting, label: label_gk_records_event_appearance_setting_changed}
+    - {key: appearance_setting_chosen, target: appearance_setting, label: label_gk_records_event_appearance_setting_chosen}
   link_kinds:
     - {key: corrects, label: gk_records_link_corrects, directed: true, targets: [note]}
     - {key: partial_duplicate, label: gk_records_link_partial_duplicate, directed: false, targets: [issue]}
@@ -42,8 +45,12 @@ triggers: []            # triggers (kärnlager): färdiga utlösare pluginet lev
 trigger_actions: []     # triggers (kärnlager): åtgärder pluginet erbjuder {key, label, params, scope, mode: [job, sync], dry_run}
 gis_layers: []          # gis: lager pluginet visar {key, label, target, roles, color_role}
 gis_columns: []         # gis: egna geometrikolumner för massdata {table, column, srid, geometry_type, reason}
-disk_areas: []          # filområden på disk (6.2c): {key, path eller setting + default, kind: content | byproduct | backup}; <attachments>, <redmine>, <plugin> ersätts
+disk_areas: []          # filområden på disk: {key, path eller setting + default, kind: content | byproduct | backup}; <attachments>, <redmine>, <plugin> ersätts
 appearances: {}         # fields layouts: utseenden per fälttyp {<field_format>: [{key, name, defaults: [show, edit, small], text}]}
 access_items: []        # access: uppgifter som bär en nivå {key, label, plugin}
 features:               # records Features (features.rb), registret för alla plugins funktioner; av från början
   - {key: records.more_note_kinds, default: false, label: label_gk_feature_records_more_note_kinds, help: text_gk_feature_records_more_note_kinds}
+appearance_settings:    # records AppearanceSettings (appearance_settings.rb), the register of every plugin's appearance settings: {key, group, modes, default: off, proposal, values: [names], label, help}
+  - {key: records.export_manifest, group: lists, modes: ["off", optional, forced], default: "off", proposal: "off", values: [], label: label_gk_records_appearance_export_manifest, help: text_gk_records_appearance_export_manifest}
+footprints:             # records AppearanceSettings (footprint: and applies:, ExportLog::MANIFEST_FOOTPRINT in export_log.rb): what the setting changes on the pages
+  records.export_manifest: {applies: [script], footprint: {anchors: ['.gk-records-manifest-link', '.gk-records-manifest-choice'], pages: [all], adds: [{anchor: '.gk-records-manifest-link', label: label_gk_records_with_manifest}]}}

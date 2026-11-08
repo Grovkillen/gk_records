@@ -26,7 +26,7 @@
           <span class="gk-records-when"><%= format_time(k.created_at) %></span><%= gk_records_origin_badge(k.origin) %></td>
         <td class="buttons">
           <% if k.voided_at %><span class="gk-records-meta"><%= l(:label_gk_records_event_voided) %> <%= format_time(k.voided_at) %></span>
-          <%# an icon with the word, as core's row actions (records_1021-SID-15) %>
+          <%# an icon with the word, as core's row actions %>
           <% elsif @linkable && !compact %><%= link_to sprite_icon('del', l(:button_gk_records_void)), gk_records_link_void_path(k, target: ref), method: :post,
                                                         class: 'icon icon-del gk-records-action', title: l(:button_gk_records_void),
                                                         data: { confirm: l(:text_gk_records_link_void_confirm), gk_gui_row_action: 'delete' } %><% end %>
@@ -37,9 +37,9 @@
   </table>
 <% end %>
 <%= gk_gui_stuff_row_menu if @linkable && !compact && groups.any? && respond_to?(:gk_gui_stuff_row_menu) %>
-<%# Lägg till koppling goes to the same page, so the link to it is only for a reader who may not add (records_1021-SID-55) %>
+<%# Lägg till koppling goes to the same page, so the link to it is only for a reader who may not add %>
 <% if compact && !@linkable %>
-  <%# what the page is, on hover (records_1021-SID-14) %>
+  <%# what the page is, on hover %>
   <p class="gk-records-open"><%= link_to l(:label_gk_records_open_as_page), gk_records_links_page_path(target: ref), title: l(:text_gk_records_open_as_page) %></p>
 <% end %>
 </div>

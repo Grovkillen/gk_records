@@ -51,14 +51,17 @@ module GkRecords
     def find(key) = all[key.to_s]
 
     # The person's earlier reasons as suggestions only where a plugin gives a search field of the select2 kind and
-    # says so here (records_1021-SID-30: "inget förslag annat än om select2-funktionalitet finns via annat plugin");
+    # says so here;
     # without it the field has no suggestion, no Använd for one and no list
     def suggest_with!(plugin) = (@suggest_by = plugin.to_s)
     def suggest? = !@suggest_by.nil?
 
+    # The memory is shared by the threads of the process; inside a transaction the table answers and the memory is left alone
     def stored
+      return read_stored if ::GkRecordsReasonMode.connection.open_transactions.positive?
+
       if @stored.nil? || @loaded_at.nil? || Time.current - @loaded_at > TTL
-        @stored = ::GkRecordsReasonMode.table_exists? ? ::GkRecordsReasonMode.pluck(:key, :mode).to_h : {}
+        @stored = read_stored
         @loaded_at = Time.current
       end
       @stored
@@ -66,10 +69,12 @@ module GkRecords
       {}
     end
 
+    def read_stored = ::GkRecordsReasonMode.table_exists? ? ::GkRecordsReasonMode.pluck(:key, :mode).to_h : {}
+
     def forget! = (@stored = nil)
 
-    # Nothing chosen: off, so that a new installation is close to core and grows from there (the owner, human test
-    # records_1021-SID-24); every place's own default is still there to choose (PLACES), and a fixed place keeps its own
+    # Nothing chosen: off, so that a new installation is close to core and grows from there;
+    # every place's own default is still there to choose (PLACES), and a fixed place keeps its own
     def installation_mode
       m = stored[ALL]
       return m if MODES.include?(m) || m == PLACES
@@ -85,8 +90,8 @@ module GkRecords
 
     # What holds now: a fixed place its own default; else the place's own mode, else the installation's, else the default.
     # A place nobody declared is optional (a forgotten declaration never refuses a save).
-    # The installation's Av, Valfritt or Krävs holds for every place and locks the places' own choices (the owner, human
-    # test records_1022-SID-01, "Installationen låser"); only with Varje ställes förval (PLACES) does a place's own mode
+    # The installation's Av, Valfritt or Krävs holds for every place and locks the places' own choices;
+    # only with Varje ställes förval (PLACES) does a place's own mode
     # count. A place's stored choice stays and holds again when the installation is set back to PLACES.
     def locked? = MODES.include?(installation_mode)
 

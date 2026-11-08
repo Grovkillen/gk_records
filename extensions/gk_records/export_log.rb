@@ -20,12 +20,26 @@ module GkRecords
   #   dialog and a link "med manifest" beside the other formats (script).
   #   Without the choice nothing changes.
   # The setting export_log (on for a new installation) switches it all off; the events already written stay.
+  # The choice "med manifest" on the pages is a row under Appearance, off from the start; the log and a request that asks
+  # with with_manifest=1 do not depend on it.
   module ExportLog
     KINDS = %w[exported attachment_downloaded printed].freeze
     PERMISSION = :gk_records_view_exports
     SUM_MAX = 50 * 1_048_576 # a file on disk larger than this is not read for its checksum
+    MANIFEST_ROW = 'records.export_manifest'
+    MANIFEST_FOOTPRINT = { anchors: ['.gk-records-manifest-link', '.gk-records-manifest-choice'], pages: %w[all],
+                           adds: [{ anchor: '.gk-records-manifest-link', label: :label_gk_records_with_manifest }] }.freeze
+    MANIFEST_APPLIES = %w[script].freeze
 
     class << self
+      def register_manifest_row!
+        AppearanceSettings.register(MANIFEST_ROW, plugin: :gk_records, group: :lists,
+                                                  label: :label_gk_records_appearance_export_manifest,
+                                                  help: :text_gk_records_appearance_export_manifest,
+                                                  preview: 'gk_records_appearance/previews/export_manifest',
+                                                  footprint: MANIFEST_FOOTPRINT, applies: MANIFEST_APPLIES)
+      end
+
       def on?
         s = ::Setting.plugin_gk_records
         (s.is_a?(Hash) ? s.transform_keys(&:to_s)['export_log'] : nil).to_s != '0'
@@ -321,15 +335,22 @@ module GkRecords
   # With the export log on, the script that tells the server when the page is printed and the choice "med manifest"
   # where exports are offered (only for one logged in)
   class ExportLogHooks < Redmine::Hook::ViewListener
-    def view_layouts_base_html_head(_context = {})
+    def view_layouts_base_html_head(context = {})
       return '' unless ExportLog.on? && User.current.logged?
 
       url = "#{Redmine::Utils.relative_url_root}/gk_records/printed"
       out = content_tag(:meta, nil, id: 'gk-records-export-print', name: 'gk-records-export-print', 'data-url': url)
       out += javascript_include_tag('gk_records_export_print', plugin: 'gk_records', defer: true)
+      return out unless AppearanceSettings.on_for?(ExportLog::MANIFEST_ROW)
+
       # "med manifest" in core's CSV dialog and beside the other formats
       out += content_tag(:meta, nil, id: 'gk-records-export-manifest', name: 'gk-records-export-manifest', 'data-label': l(:label_gk_records_with_manifest),
                                      'data-title': l(:text_gk_records_with_manifest))
+      # core's zip icon as core's own helper draws it (the sprite of the running series), for the script to copy
+      view = context[:hook_caller]
+      if view.respond_to?(:sprite_icon)
+        out += content_tag(:template, view.sprite_icon('application-zip'), id: 'gk-records-export-manifest-icon')
+      end
       out + javascript_include_tag('gk_records_export_manifest', plugin: 'gk_records', defer: true)
     rescue StandardError => e
       Rails.logger.error("[gk_records] export log scripts not loaded: #{e.class}: #{e.message}")

@@ -265,12 +265,14 @@ module GkRecords
     def register!
       # The assessment kinds kept in records' settings are emptied with the instance, as their history in the events is
       # (scenarios' generic Wipe.clear_setting)
-      ::GkScenarios::Wipe.clear_setting(:gk_records, AssessmentKinds::SETTING) if ::GkScenarios::Wipe.respond_to?(:clear_setting)
+      # and so are the functions chosen under Functions, as those of the other plugins are: an emptied instance starts
+      # with them off.
+      ::GkScenarios::Wipe.clear_setting(:gk_records, AssessmentKinds::SETTING, %q(features)) if ::GkScenarios::Wipe.respond_to?(:clear_setting)
       # the export log's step and expectations (scenarios_export_log.rb)
       register_export_log!
       # The reasons' modes the scenario needs (records: { reason_modes: { all: places } }; all is the installation),
       # before every other step, so that what the other plugins' steps write keeps its reason: a new installation has
-      # reasons off (records_1021-SID-24), and the plugins' own reason rules are tried with each place's default
+      # reasons off, and the plugins' own reason rules are tried with each place's default
       ::GkScenarios::Steps.register('records_reason_modes', plugin: :gk_records, order: 5) do |ctx|
         modes = ((ctx.scenario.data['records'] || {})['reason_modes'])
         next unless modes.is_a?(Hash)
@@ -471,6 +473,24 @@ module GkRecords
         { 'ok' => failed.empty?, 'want' => 'statuses and text revisions in the doubled hour, in order', 'got' => failed.empty? ? 'statuses and text revisions in the doubled hour, in order' : "not: #{failed.join(', ')}" }
       end
 
+      # records_reason_mode: all (the installation's) or a place's key, equals: off|optional|required   the mode as the table
+      # holds it now, read past the memory of the modes
+      ::GkScenarios::Expect.register('records_reason_mode') do |_ctx, e|
+        Reasons.forget!
+        key = e['records_reason_mode'].to_s
+        got = (key == 'all' ? Reasons.installation_mode : Reasons.own_mode(key)).to_s
+        want = e['equals'] == false ? 'off' : e['equals'].to_s
+        { 'ok' => got == want, 'want' => want, 'got' => got }
+      end
+
+      # records_feature_chosen: <one of records' own functions>, equals: true|false   the function is chosen under
+      # Administration, Functions; another plugin needing it does not count
+      ::GkScenarios::Expect.register('records_feature_chosen') do |_ctx, e|
+        got = Features.chosen?(e['records_feature_chosen'].to_s)
+        want = e.key?('equals') ? e['equals'] == true : true
+        { 'ok' => got == want, 'want' => want.to_s, 'got' => got.to_s }
+      end
+
       # records_count: notes, events or links on one of the scenario's objects, narrowed by kind (and voided for notes)
       ::GkScenarios::Expect.register('records_count') do |ctx, e|
         type, id = ref(ctx.scenario, e['target'])
@@ -622,6 +642,26 @@ module GkRecords
         got = !::GkRecordsEvent.log_for(viewer, project: project).nil?
         want = !e.key?('equals') || e['equals'].to_s == 'true'
         { 'ok' => got == want, 'want' => want.to_s, 'got' => got.to_s }
+      end
+
+      # records_events_contained: the log under Administration as the scenario's user in records_events_contained reads it
+      # holds only events of projects where the user has Se händelser, and a search for the name of an event outside it,
+      # as an administrator sees that name, finds nothing outside either. There must be events on both sides.
+      ::GkScenarios::Expect.register('records_events_contained') do |ctx, e|
+        viewer = ::User.find_by(login: ::GkScenarios::Expect.login(ctx, e['records_events_contained']))
+        scope = viewer && ::GkRecordsEvent.log_for(viewer)
+        next({ 'ok' => false, 'want' => 'a user who may open the log', 'got' => viewer ? 'may not open it' : 'no user' }) unless scope
+
+        allowed = ::Project.where(ApiScope.project_condition(viewer, :gk_records_view_events)).pluck(:id)
+        seen = scope.limit(1000).to_a
+        outside = ::GkRecordsEvent.where.not(id: seen.map(&:id)).order(id: :desc).limit(50).to_a
+        next({ 'ok' => false, 'want' => 'events inside and outside', 'got' => "#{seen.size} inside, #{outside.size} outside" }) if seen.empty? || outside.empty?
+
+        admin = ::User.where(admin: true).first
+        names = outside.filter_map { |ev| ev.target_label(admin).presence }.uniq.first(20)
+        found = names.flat_map { |n| EventSearch.search(scope, EventSearch.words(n), limit: 100, viewer: viewer).events }
+        stray = (seen + found).reject { |ev| allowed.include?(ev.project_id) }
+        { 'ok' => stray.empty?, 'want' => "only projects #{allowed.join(', ')}, #{names.size} names searched", 'got' => stray.empty? ? 'ok' : "#{stray.size} outside, first #{stray.first.id}" }
       end
 
       # records_events_csv (1.01.000): the event log as the scenario's user in records_events_csv reads it (project:
@@ -813,7 +853,7 @@ module GkRecords
               checks << ['optional', c1.ok && c1.text.nil? && c2.ok && c2.text == 'ett skäl']
               r.set_mode!(key, 'inherit', reason: 'scenario')
               checks << ['inherit is the default', r.mode(key) == place.default]
-              # records_1022-SID-01: the installation's mode locks the places, also one with its own mode
+              # the installation's mode locks the places, also one with its own mode
               r.set_mode!(key, 'optional', reason: 'scenario')
               r.set_mode!(r::ALL, 'required', reason: 'scenario')
               checks << ['installation locks', r.mode(key) == 'required' && r.locked?]

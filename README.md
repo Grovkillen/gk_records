@@ -71,7 +71,7 @@ Uninstall:
 - On an issue: the Links tab in the history, the Assessments tab when there are assessments, and the Verification status row on the chosen trackers.
 - In a project with the Documents module: "Read in documents" on the Documents tab.
 - Administrators: Administration > Events, Reasons and Readings.
-- Export, download and print events appear among the events on the issue, wiki page, project or user they concern, for users with the permission; the "with manifest" choice appears in Redmine's CSV export dialog and beside the other export formats.
+- Export, download and print events appear among the events on the issue, wiki page, project or user they concern, for users with the permission; the "with manifest" choice appears in Redmine's CSV export dialog and beside the other export formats while its row under Administration > Appearance (GK GUI Stuff) is on; it is off in a new installation.
 
 ## Changelog
 

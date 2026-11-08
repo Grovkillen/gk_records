@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 module GkRecords
-  # Records' functions (the owner, human test records_1021: "måste man kunna aktivera händelser, inläsningar, skäl om man
-  # vill använda sig av det", "vi måste låta de beroende pluginen själva aktivera funktioner som de behöver utan att man
-  # ska behöva klicka sig emellan olika plugin-inställningssidor"; the choice "Dölja sidor och menyer"). A function is
+  # Records' functions. A function is
   # on when the administrator turns it on in records' settings, when a plugin asked for it (request), or when a GK
   # plugin known to use it is installed. Off hides its pages, menu rows and tabs; nothing is deleted, events are always
   # written (retention and the history rely on them), and it all shows again when it is turned on.
@@ -17,9 +15,11 @@ module GkRecords
   #                                help: :text_gk_feature_tags_marks)
   #   GkRecords::Features.on?('tags.marks')
   # A declared function is off until the administrator switches it on (Administration > Funktioner, gui_stuff's page
-  # reads this register), and a key nobody declared is off: no plugin has a default of its own. A function that is off
-  # draws nothing; its data stays. Every switch is an event on the function, with the reason. A plugin without records
-  # has every function off.
+  # reads this register), unless its registration says default: true;
+  # a key nobody declared is off. The default stands in the registration and in the plugin's
+  # registrations.yml, and the first switch away from it is an event like any other. A function that is off draws
+  # nothing; its data stays. Every switch is an event on the function, with the reason. A plugin without records has
+  # every function off.
   module Features
     ALL = %w[links assessments events readings verification].freeze
     SWITCHED = %w[links assessments events readings].freeze
@@ -39,7 +39,7 @@ module GkRecords
       'gk_access' => 'GK Access', 'gk_budget' => 'GK Budget', 'gk_checklists' => 'GK Checklists', 'gk_fields' => 'GK Fields',
       'gk_gis' => 'GK GIS', 'gk_graphic_profiles' => 'GK Graphic Profiles', 'gk_gui_stuff' => 'GK GUI Stuff', 'gk_icons' => 'GK Icons',
       'gk_people' => 'GK People', 'gk_project_types' => 'GK Project Types', 'gk_publishing' => 'GK Publishing',
-      'gk_queries' => 'GK Queries', 'gk_recurring' => 'GK Recurring', 'gk_retention' => 'GK Retention', 'gk_revisions' => 'GK Revisions',
+      'gk_queries' => 'GK Queries', 'gk_readup' => 'GK Readup', 'gk_recurring' => 'GK Recurring', 'gk_retention' => 'GK Retention', 'gk_revisions' => 'GK Revisions',
       'gk_signoff' => 'GK Signoff', 'gk_tags' => 'GK Tags', 'gk_templates' => 'GK Templates', 'gk_triggers' => 'GK Triggers',
       'gk_workflow_rules' => 'GK Workflow Rules'
     }.freeze
@@ -88,7 +88,10 @@ module GkRecords
     def missing_users(key) = Array(USERS[key.to_s]).reject { |p| installed?(p) }
 
     # A declared function of another plugin (register)
-    Declared = Struct.new(:key, :plugin, :label_key, :help_key, :admin_only, keyword_init: true) do
+    # related: functions shown as "Goes with"; requires: functions that must be on with it (the page asks); footprint and
+    # applies: what it adds to or removes from the pages and how (footprint.rb)
+    Declared = Struct.new(:key, :plugin, :label_key, :help_key, :admin_only, :default, :related, :requires, :footprint, :applies,
+                          keyword_init: true) do
       def label = ::I18n.t(label_key, default: key)
       def help = help_key ? ::I18n.t(help_key, default: '') : ''
       def plugin_name = Redmine::Plugin.registered_plugins[plugin.to_sym]&.name || plugin.to_s
@@ -101,25 +104,56 @@ module GkRecords
 
     def declared = (@declared ||= {})
 
-    # Registered again after a reload
-    def register(key, plugin:, label: nil, help: nil, admin_only: false)
+    # Registered again after a reload; default: true is on until the administrator switches it off. footprint: what
+    # the function puts on the pages (adds:, removes:, anchors:, elements:, pages:) and applies: how (footprint.rb); a
+    # new function with a visible effect declares them, and an anchor that breaks footprint.rb's rules is left out and
+    # logged.
+    def register(key, plugin:, label: nil, help: nil, admin_only: false, default: false, related: [], requires: [],
+                 footprint: nil, applies: nil)
       k = key.to_s
       raise ArgumentError, "records: #{k} is one of records' own functions" if ALL.include?(k)
+      raise ArgumentError, "records: #{k} is an appearance setting" if defined?(AppearanceSettings) && AppearanceSettings.find(k)
 
+      fp = Footprint.normalize(footprint, k)
+      how = Footprint.applies(applies, k)
       declared[k] = Declared.new(key: k, plugin: plugin.to_s, label_key: label || :"label_gk_feature_#{k.tr('.', '_')}",
-                                 help_key: help, admin_only: admin_only ? true : false)
+                                 help_key: help, admin_only: admin_only ? true : false, default: default ? true : false,
+                                 related: Array(related).map(&:to_s), requires: Array(requires).map(&:to_s),
+                                 footprint: stable_footprint(k, fp), applies: how)
+    end
+
+    # The footprint with only the anchors that keep to the rules; the others are logged
+    def stable_footprint(key, footprint)
+      bad = Footprint.problems(footprint)
+      bad.each { |a, why| Rails.logger.warn("[gk_records] #{key}: anchor #{a} left out of the footprint (#{why})") } if bad.any? && defined?(Rails.logger) && Rails.logger
+      bad.any? ? Footprint.stable(footprint) : footprint
     end
 
     def find(key) = declared[key.to_s]
 
-    def switched_on?(key)
+    # What a declared function affects (Påverkar), nil when nothing is described
+    def footprint(key) = find(key)&.footprint
+
+    # Whether the function says what it affects: a footprint, or applies none
+    def described?(key)
       f = find(key)
-      f ? stored[f.key] == true : false
+      f ? Footprint.described?(f.footprint) || f.applies == ['none'] : false
     end
 
+    def switched_on?(key)
+      f = find(key)
+      return false unless f
+
+      stored.key?(f.key) ? stored[f.key] == true : f.default
+    end
+
+    # The memory is shared by the threads of the process. Inside a transaction the table answers and the memory is left
+    # alone: another thread's read cannot stand in for what this one has written, and what may be rolled back stays here.
     def stored
+      return read_stored if ::GkRecordsFeature.connection.open_transactions.positive?
+
       if @stored.nil? || @loaded_at.nil? || Time.current - @loaded_at > TTL
-        @stored = ::GkRecordsFeature.table_exists? ? ::GkRecordsFeature.pluck(:key, :enabled).to_h : {}
+        @stored = read_stored
         @loaded_at = Time.current
       end
       @stored
@@ -127,10 +161,12 @@ module GkRecords
       {}
     end
 
+    def read_stored = ::GkRecordsFeature.table_exists? ? ::GkRecordsFeature.pluck(:key, :enabled).to_h : {}
+
     def forget! = (@stored = nil)
 
-    # The administrator's switch, with the reason; an event on the function
-    def set!(key, enabled, reason: nil, user: User.current)
+    # The administrator's switch, with the reason and the place it was asked for; an event on the function
+    def set!(key, enabled, reason: nil, user: User.current, reason_key: nil)
       f = find(key) or raise ArgumentError, "gk_records: no declared function #{key}"
       forget! # decide from the table, not from memory
       before = switched_on?(f.key)
@@ -139,19 +175,51 @@ module GkRecords
       row.updated_by_id = user&.logged? ? user.id : nil
       row.save!
       forget!
-      record(row, before, row.enabled, reason) if before != row.enabled
+      record(row, before, row.enabled, reason, reason_key) if before != row.enabled
       row
     end
 
-    def set_many!(changes, reason: nil) = changes.each { |k, v| set!(k, v, reason: reason) }
+    # Several switches with one reason, in one transaction: an unknown key refuses them all. Returns the keys that changed.
+    def set_many!(changes, reason: nil, user: User.current, reason_key: nil)
+      changed = []
+      ::GkRecordsFeature.transaction do
+        changes.each do |k, v|
+          f = find(k) or raise ArgumentError, "gk_records: no declared function #{k}"
+          before = switched_on?(f.key)
+          set!(f.key, v, reason: reason, user: user, reason_key: reason_key)
+          changed << f.key if before != (v ? true : false)
+        end
+      end
+      forget! # a read by another thread before the commit is not kept
+      changed
+    end
+
+    # The newest switch of each function: { key => { event:, user:, at:, reason:, enabled: } }; one query for the rows and
+    # one for the events, never one per function
+    def last_changes(keys = nil)
+      return {} unless defined?(::GkRecordsEvent) && ::GkRecordsFeature.table_exists?
+
+      scope = keys ? ::GkRecordsFeature.where(key: Array(keys).map(&:to_s)) : ::GkRecordsFeature.all
+      ids = scope.pluck(:id, :key).to_h
+      return {} if ids.empty?
+
+      newest = ::GkRecordsEvent.where(target_type: TARGET, kind: KIND, target_id: ids.keys).group(:target_id).select('MAX(id)')
+      ::GkRecordsEvent.where(id: newest).includes(:user, :reason_note).each_with_object({}) do |e, h|
+        h[ids[e.target_id]] = { event: e, user: e.user, at: e.created_at, reason: e.reason_text.to_s.squish,
+                                enabled: Array(e.details_hash['enabled']).last }
+      end
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] functions' last changes not read: #{e.message}")
+      {}
+    end
 
     def by_plugin = declared.values.group_by(&:plugin).sort_by { |p, _| Redmine::Plugin.registered_plugins[p.to_sym]&.name.to_s }
 
-    def record(row, before, after, reason)
+    def record(row, before, after, reason, reason_key = nil)
       return unless Targets.find(TARGET) && Kinds.find(:event, KIND)
 
       Events.write(row, KIND, details: { 'feature' => row.key, 'enabled' => [before, after] }, reason: reason.presence,
-                              user: User.current.logged? ? User.current : nil)
+                              user: User.current.logged? ? User.current : nil, reason_key: reason_key)
     rescue StandardError => e
       Rails.logger.warn("[gk_records] function switch not recorded for #{row.key}: #{e.message}")
     end

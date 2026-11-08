@@ -1,16 +1,19 @@
 # frozen_string_literal: true
-# Revision: 0.00.000
+# Revision: 0.00.001
 # One shared layer of notes, events and links on everything that is not an issue: other plugins register their models as
 # targets and their kinds, write events with GkRecords::Events.write, and render the list partial on their pages.
 # Nothing is edited or deleted: a note is corrected by a new note (link "corrects") and voided with a reason.
-# Notes are light Markdown only (5.6c): core's formatter, then everything above the level is stripped.
+# Notes are light Markdown only: core's formatter, then everything above the level is stripped.
 # Registry and hooks live in extensions/, models and views in app/.
 # Depends on: gk_core_stuff required; optional gk_queries, gk_compat, gk_fields, gk_gui_stuff, gk_icons, gk_people,
 # gk_revisions, gk_scenarios.
 
 require_relative 'extensions/gk_records/registry'
 require_relative 'extensions/gk_records/api_scope'
+require_relative 'extensions/gk_records/footprint' # what a setting or a function changes on the pages, as data
 require_relative 'extensions/gk_records/features'
+require_relative 'extensions/gk_records/appearance_settings'
+require_relative 'extensions/gk_records/appearance_kinds'
 require_relative 'extensions/gk_records/system_text'
 require_relative 'extensions/gk_records/identity'
 require_relative 'extensions/gk_records/assessment_kinds'
@@ -22,15 +25,17 @@ require_relative 'extensions/gk_records/issue_links'
 require_relative 'extensions/gk_records/readings'
 require_relative 'extensions/gk_records/document_import'
 require_relative 'extensions/gk_records/events_csv'
+require_relative 'extensions/gk_records/event_search'
 require_relative 'extensions/gk_records/registrations'
 require_relative 'extensions/gk_records/export_log'
+GkRecords::ExportLog.register_manifest_row! # "med manifest" as a row under Appearance, off from the start
 require_relative 'extensions/gk_records/patches'
 
 Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.04.000'
+  version     '1.05.000'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the
@@ -84,6 +89,9 @@ GkRecords::Reasons.register_records!
 # The functions' register: the target and the kind of a switch, and records' own declared function (the note kinds
 # beyond kommentar and skäl, off for a new installation); other plugins declare theirs
 GkRecords::Features.register_records!
+# The register of appearance settings: the target and the kinds of an administrator's change and of a person's own
+# choice; other plugins declare their settings
+GkRecords::AppearanceSettings.register_records!
 # A reading is a target, so events can be written on it
 GkRecords::Readings.register_target!
 # The issue is records' own target (before, workflow_rules registered it)
@@ -127,6 +135,8 @@ Rails.configuration.after_initialize do
   # The reasons' modes and the function switches name the administrator who set them
   ::GkPeople::Processing.declare(:gk_records_reason_modes, category: 'records', plugin: :gk_records) if defined?(::GkPeople::Processing)
   ::GkPeople::Processing.declare(:gk_records_features, category: 'records', plugin: :gk_records) if defined?(::GkPeople::Processing)
+  # and so do the appearance settings, whose person rows are a person's own choices
+  ::GkPeople::Processing.declare(:gk_records_appearance_settings, category: 'records', plugin: :gk_records) if defined?(::GkPeople::Processing)
   # The readings name who ran them, and their fields point at registered persons
   if defined?(::GkPeople::Processing)
     %i[gk_records_readings gk_records_field_origins gk_records_verifications].each { |t| ::GkPeople::Processing.declare(t, category: 'records', plugin: :gk_records) }

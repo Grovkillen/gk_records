@@ -32,7 +32,7 @@ class GkRecordsEventQuery < Query
     # (" (syns inte för alla)", setting mark_restricted_people); the list itself shows the icon (gk_queries_query_cell)
     def value_object(object)
       shown = GkRecords::Visibility.shown(object.user)
-      # counted among those who see the event's thing (records_1021-SID-63)
+      # counted among those who see the event's thing
       thing = object.target
       return shown unless shown.is_a?(::Principal) && GkRecords::Visibility.restricted_info(shown, on: thing)[:restricted]
 
@@ -64,6 +64,8 @@ class GkRecordsEventQuery < Query
   def initialize_available_filters
     add_available_filter 'kind', type: :list, values: -> { GkRecords::Kinds.of(:event).map { |k| [k.label, k.key] } }, label: :label_gk_records_kind
     add_available_filter 'target_type', type: :list, values: -> { GkRecords::Targets.all.values.map { |t| [t.key, t.key] } }, label: :label_gk_records_target_type
+    # one thing's events, with the target's type (the History link of an appearance setting)
+    add_available_filter 'target_id', type: :integer, label: :label_gk_records_target_id
     add_available_filter 'user_id', type: :list_optional, values: -> { author_values }, label: :field_user
     add_available_filter 'created_at', type: :date_past, label: :field_created_on
     add_available_filter 'origin', type: :list, values: GkRecordsNote::ORIGINS.map { |o| [o, o] }, label: :field_gk_records_origin

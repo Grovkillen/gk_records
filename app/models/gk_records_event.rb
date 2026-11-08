@@ -64,17 +64,22 @@ class GkRecordsEvent < ApplicationRecord
   end
 
   def target
+    return @target_known if defined?(@target_known)
+
     t = GkRecords::Targets.find(target_type)
     t && t.model_class.find_by(id: target_id)
   end
 
+  # The target when a list has already read it (GkRecords::EventSearch), so that the event does not ask again
+  def target_known(obj) = (@target_known = obj)
+
   # Query columns (GkRecordsEventQuery); the view gives them links and tags, CSV and JSON get these texts
   # A target the reader may not see is not named either (a person registered as a target is named by her name)
-  def target_label
+  def target_label(viewer = User.current)
     t = target
     return "#{target_type}:#{target_id}" unless t
 
-    GkRecords::Targets.visible?(t) ? GkRecords::Targets.label(t) : ::I18n.t(:text_gk_records_hidden_thing)
+    GkRecords::Targets.visible?(t, viewer) ? GkRecords::Targets.label(t) : ::I18n.t(:text_gk_records_hidden_thing)
   end
 
   # The reason kept in the details (Events.write on a target whose notes are refused, such as an issue): only
@@ -140,7 +145,7 @@ class GkRecordsEvent < ApplicationRecord
       .merge(hidden.empty? ? {} : { details_hidden: hidden })
       .merge(vis.api_user(:user_id, user_id, user, viewer))
       .merge(vis.api_user(:acting_user_id, acting_user_id, acting_user, viewer))
-      .merge(reason: reason_text.presence, origin: origin, created_at: created_at)
+      .merge(reason: reason_text.presence, reason_key: reason_key, origin: origin, created_at: created_at)
       .merge(reason_api)
   end
 end

@@ -10,13 +10,13 @@ class GkRecordsReadingsController < ApplicationController
   before_action :find_reading, only: %i[show]
   accept_api_auth :index, :show
   helper :gk_records
-  # the pages are hidden while the function is off (records_1021, "Dölja sidor och menyer"); the API answers as before
+  # the pages are hidden while the function is off; the API answers as before
   before_action -> { render_404 unless GkRecords::Features.on?('readings') }, if: -> { request.format.html? }
 
   def index
     scope = GkRecordsReading.sorted.includes(:user)
     scope = scope.where(target_type: params[:target_type].to_s) if params[:target_type].present?
-    # Arel's matches: ILIKE on PostgreSQL, LIKE elsewhere (uppdrag 116)
+    # Arel's matches: ILIKE on PostgreSQL, LIKE elsewhere
     scope = scope.where(GkRecordsReading.arel_table[:source_label].matches("%#{GkRecordsReading.sanitize_sql_like(params[:source].to_s.strip)}%")) if params[:source].present?
     @readings = scope.limit((params[:limit] || 200).to_i.clamp(1, 1000)).to_a
     respond_to do |format|

@@ -131,9 +131,11 @@ module GkRecords
       private
 
       # The place records.settings decides; a required reason missing stops the save before any setting is written,
-      # and the page comes back with the error
+      # and the page comes back with the error. Required only for a form that carries the field (its view calls the
+      # hook beside Save): a form without it is never stopped for a reason it cannot take
       def gk_records_setting_reason(&block)
-        if request.post? && User.current.admin? && params.key?(:settings) && !@sudo_form
+        drawn = GkRecords::SettingsHistory.reason_drawn?(plugin: params[:action] == 'plugin', tab: params[:tab])
+        if request.post? && User.current.admin? && params.key?(:settings) && !@sudo_form && drawn
           check = GkRecords::Reasons.check('records.settings', params[:gk_records_reason])
           unless check.ok
             flash[:error] = check.error
@@ -147,11 +149,23 @@ module GkRecords
   end
 
   # The reason field on the settings pages, just after the Save of every form (info and choices above, the owner's convention),
-  # with a link to the settings' history. Core has no hook in those forms, so the field is placed by script. The field
+  # with a link to the settings' history. The hook beside Save in every settings tab and on a plugin's settings page
+  # (view_settings_form_save_after, gk_core_stuff's more_view_hooks) draws the field's place; the script builds the
+  # field there and in nothing else. A form whose view does not call the hook gets no field. The field
   # is folded behind the link "Add a reason" (core's add icon), which only opens it; the form's Save saves, with the
   # reason that is written. A required reason folds too and is unfolded with its hint when the form is sent without it. Open, the field and its buttons
   # stand in one framed group; the buttons are core's submit buttons (core's look and hover) that never send the form.
   class SettingsHooks < Redmine::Hook::ViewListener
+    # The field's place, just after the form's Save; the script below replaces it with the field. need: whether this
+    # form's reason is required (the same answer the controller gives when the form is sent)
+    def view_settings_form_save_after(context = {})
+      return '' unless User.current.admin? && SettingsHistory.reason_field?
+
+      need = SettingsHistory.reason_required? && SettingsHistory.reason_drawn?(plugin: context[:plugin].present?, tab: context[:tab])
+      content_tag('span', '', hidden: true, class: 'gk-records-setting-reason-slot',
+                              data: { gk_records_reason_slot: '1', gk_records_reason_need: need ? '1' : '0' })
+    end
+
     def view_layouts_base_body_bottom(context = {})
       c = context[:controller]
       return '' unless c.is_a?(::SettingsController) && User.current.admin? && SettingsHistory.reason_field?
@@ -160,7 +174,7 @@ module GkRecords
       return '' if c.instance_variable_get(:@sudo_form)
 
       label = ::I18n.t(:label_gk_records_setting_reason)
-      # no suggestion until a plugin gives a search field of the select2 kind (records_1021-SID-30)
+      # no suggestion until a plugin gives a search field of the select2 kind
       latest = GkRecords::Reasons.suggest? ? GkRecords::Reasons.suggestions('records.settings')[:latest] : nil
       sug = latest ? ::I18n.t(:text_gk_records_reason_suggest, text: latest.truncate(60)) : nil
       hint = ::I18n.t(:text_gk_records_setting_reason)
@@ -170,18 +184,23 @@ module GkRecords
       # square ×, the group's frame and what is hidden
       stylesheet_link_tag('gk_records', plugin: 'gk_records') + javascript_tag(<<~JS)
         (function () {
-          var sug = #{sug.to_json}, latest = #{latest.to_json}, need = #{SettingsHistory.reason_required?};
+          var sug = #{sug.to_json}, latest = #{latest.to_json};
           // a button of the field: core's submit button for core's look and hover; a click on it never sends the form
           var button = function (text, css, fn) {
             var b = document.createElement('button'); b.type = 'submit'; b.className = css; b.textContent = text;
             b.addEventListener('click', function (e) { e.preventDefault(); fn(); });
             return b;
           };
-          document.querySelectorAll('#content form').forEach(function (f) {
-            if (f.id === 'sudo-form' || f.method.toLowerCase() !== 'post' || f.querySelector('[name=gk_records_reason]')) return;
+          // the places the hook beside Save drew (records' own mark), each in the settings form it was drawn in; a
+          // form without one gets no field
+          document.querySelectorAll('span[data-gk-records-reason-slot]').forEach(function (slot) {
+            var f = slot.closest('form');
+            var need = slot.getAttribute('data-gk-records-reason-need') === '1';
+            if (!f || f.method.toLowerCase() !== 'post' || f.querySelector('[name=gk_records_reason]')) { slot.remove(); return; }
             // just after the button that saves (the button first, the reason to its right): the reason is
-            // written last, where the hand is when the change is made, not above a long page
-            var submit = f.querySelector('input[type=submit][name=commit]') || f.querySelector('input[type=submit]');
+            // written last, where the hand is when the change is made, not above a long page. The Save is the one
+            // core marks as the form's save (data-form-action=save), used only to give the field's buttons its height
+            var submit = Array.prototype.filter.call(f.querySelectorAll('input[type=submit][data-form-action=save]'), function (b) { return b.form === f; })[0] || null;
             var s = document.createElement('span');
             s.className = 'gk-records-setting-reason';
             var l = document.createElement('label'); l.textContent = #{label.to_json};
@@ -254,12 +273,12 @@ module GkRecords
                 return;
               } else if (!need) return;
               e.preventDefault(); tip.hidden = false; t.focus();
+              // core marks the form sent at this stopped send and refuses the next: the mark goes after its handler
+              setTimeout(function () { f.removeAttribute('data-submitted'); }, 0);
             }, true);
             t.addEventListener('input', function () { if (t.value.trim()) tip.hidden = true; });
-            if (submit) {
-              submit.parentNode.insertBefore(s, submit.nextSibling);
-              submit.parentNode.insertBefore(document.createTextNode(' '), s);
-            } else f.appendChild(s);
+            slot.parentNode.insertBefore(document.createTextNode(' '), slot);
+            slot.parentNode.replaceChild(s, slot);
             sizeF();
           });
         })();
@@ -271,5 +290,31 @@ module GkRecords
     # Administration > Skäl decides (the place records.settings)
     def self.reason_field? = !GkRecords::Reasons.off?('records.settings')
     def self.reason_required? = GkRecords::Reasons.required?('records.settings')
+
+    # The settings view a save comes from, the one answer for the controller and the hook: a plugin's settings page
+    # is settings/plugin; a tab is its partial, where no tab is the General tab (its form sends none) and the API tab
+    # is settings/_api in every series. nil for a tab no settings view calling the hook is known by (without the
+    # list, gk_core_stuff's hook? decides for the view alone).
+    def self.reason_view(plugin:, tab:)
+      return 'settings/plugin' if plugin
+
+      name = tab.to_s.presence || 'general'
+      view = %w[api integrations].include?(name) ? 'settings/_api' : "settings/_#{name}"
+      known = ::GkCoreStuff::MoreViewHooks::HOOK_VIEWS[:view_settings_form_save_after] if defined?(::GkCoreStuff::MoreViewHooks::HOOK_VIEWS)
+      known.nil? || known.include?(view) ? view : nil
+    end
+
+    # Whether a settings form carries the reason field: its view calls the hook beside Save, asked of gk_core_stuff
+    # by the view's name. Only a known view without the hook goes without: a tab no view is known by is asked for
+    # the reason as before, so a save can never slip past a required reason by naming another tab. Without
+    # gk_core_stuff no form carries the field.
+    def self.reason_drawn?(plugin:, tab:)
+      return false unless defined?(::GkCoreStuff) && ::GkCoreStuff.respond_to?(:hook?)
+
+      view = reason_view(plugin: plugin, tab: tab)
+      view ? ::GkCoreStuff.hook?(:view_settings_form_save_after, view: view) : true
+    rescue StandardError
+      true
+    end
   end
 end

@@ -9,7 +9,7 @@
 <% mode_tag = ->(m, css = nil) { content_tag('span', mode_label.call(m), class: ["gk-records-reason-mode gk-records-reason-mode-#{m}", css].compact.join(' ')) } %>
 <h2><%= l(:label_gk_records_reasons) %></h2>
 <p class="info"><%= l(:text_gk_records_reasons) %>
-  <%# where every change shows (records_1021-SID-23): the event log, as a query when gk_queries is there %>
+  <%# where every change shows: the event log, as a query when gk_queries is there %>
   <% if GkRecords::Features.on?('events') %><%= link_to l(:label_gk_records_reasons_events), (defined?(GkQueries) ? { controller: 'gk_queries', action: 'show', list: 'records_events' } : gk_records_events_path) %><% end %></p>
 
 <fieldset class="box tabular" id="r-all"><legend><%= l(:label_gk_records_reasons_installation) %></legend>
@@ -38,9 +38,9 @@
         <td class="default_mode"><%= mode_tag.call(p.default) %><%= " (#{l(:text_gk_records_reason_min, count: p.min)})" if p.min %></td>
         <td class="current_mode"><%= mode_tag.call(now, "badge #{{ 'required' => 'badge-status-closed', 'optional' => 'badge-status-open' }.fetch(now, 'badge-status-locked')}") %></td>
         <td class="buttons">
-          <%# the installation's Av, Valfritt or Krävs locks the places; the place's own choice shows, greyed (records_1022-SID-01) %>
+          <%# the installation's Av, Valfritt or Krävs locks the places; the place's own choice shows, greyed %>
           <% if r.locked? %>
-            <%# the same row as the form, so it stands at the start as the form does (records_1022-SID-02) %>
+            <%# the same row as the form, so it stands at the start as the form does %>
             <div class="gk-records-reason-locked">
               <%= select_tag 'mode', options_for_select(([r::INHERIT] + r::MODES).map { |m| [mode_label.call(m), m] }, r.own_mode(p.key)), id: nil,
                              disabled: true, 'aria-label': l(:field_gk_records_reason_mode) %>
@@ -66,7 +66,7 @@
   <h3><%= l(:label_gk_records_reasons_fixed) %></h3>
   <p class="info"><%= l(:text_gk_records_reasons_fixed) %></p>
   <table class="list gk-records-reasons">
-    <thead><tr><th><%= l(:label_plugin) %></th><th><%= l(:label_gk_records_reason_place) %></th><th><%= l(:label_gk_records_reason_now) %></th></tr></thead>
+    <thead><tr><th><%= l(:field_gk_records_target_plugin) %></th><th><%= l(:label_gk_records_reason_place) %></th><th><%= l(:label_gk_records_reason_now) %></th></tr></thead>
     <tbody>
     <% @fixed.each do |_plugin, places| %>
       <% places.sort_by(&:label).each do |p| %>
