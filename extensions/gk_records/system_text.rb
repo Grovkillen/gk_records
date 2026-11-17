@@ -248,6 +248,7 @@ module GkRecords
     module_function
 
     def write(target, kind: 'comment', body: nil, text_key: nil, text_values: nil, user: nil, origin: nil, parent: nil)
+      # written also while the gate is closed (gate.rb): a note a plugin writes is a trace
       t = target.is_a?(::GkRecordsNote) ? nil : Targets.for_object(target)
       type = target.is_a?(::GkRecordsNote) ? 'gk_records_note' : t&.key
       raise ArgumentError, "#{target.class.name} is not a registered records target" unless type

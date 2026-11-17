@@ -10,6 +10,7 @@
 #   POST /projects/:project_id/document_import/discard    the kept zip goes
 #   GET  /gk_records/document_import/template            the document list's template (CSV)
 class GkRecordsDocumentImportsController < ApplicationController
+  include GkRecords::Gate::Controller # core's 404 without GK GUI Stuff (gate.rb)
   menu_item :documents
   before_action :require_login
   before_action :find_project_by_project_id, except: :template

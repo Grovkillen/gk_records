@@ -79,15 +79,15 @@ module GkRecords
     end
 
     # A person sets a verification status on a thing the way the row Verifieringsstatus does (Verification.change: who
-    # may change the thing, the reason place records.verification, never Verifierad). Found again: an event of that
+    # may change the thing, the reason place records.verification, Verifierad only where the place does not lock it to the review). Found again: an event of that
     # status by the person on the thing after the one the previous row of the scenario matched (cursor), so a scenario
     # may set one status after another on the same thing and a review afterwards is left as it is. at: days from today,
     # the event, its reason and the row dated then. Returns [the event or the row, created].
     def verify_as!(ctx, obj, status, by:, reason:, label:, at: nil, cursor: {})
       key = Targets.for_object(obj)&.key or raise ::GkScenarios::Error, "#{label}: #{obj.class.name} is not a records target"
       want = status.to_s == Verification::NONE ? nil : status.to_s
-      if want == 'verified'
-        raise ::GkScenarios::Error, "#{label}: #{::I18n.t(:error_gk_records_verification_review_only)} (signoff: reviews)"
+      if want == 'verified' && Verification.review_locked?(obj)
+        raise ::GkScenarios::Error, "#{label}: #{::I18n.t(:error_gk_records_verification_review_only, step: Verification.label('verified', place: Verification.place(obj)))} (signoff: reviews)"
       end
 
       mark = [key, obj.id]
@@ -821,7 +821,7 @@ module GkRecords
       # as the scenario's user (by:, who must be an administrator): off keeps no reason even when one is sent; optional
       # keeps what is written and nothing when empty; required refuses empty, and a suggestion (the person's latest
       # reason) that was not chosen counts as empty; the installation's Av, Valfritt or Krävs locks every place, and a
-      # place's own mode counts only with Varje ställes förval; a change from required to off is an event that says so; a #123 in the reason becomes
+      # place's own mode counts only with Varje ställe för sig; a change from required to off is an event that says so; a #123 in the reason becomes
       # a link from the reason to the issue. All in a transaction that is rolled back, so the instance's modes and
       # history stay as they were.
       ::GkScenarios::Expect.register('records_reason_modes') do |ctx, e|
@@ -842,7 +842,7 @@ module GkRecords
           ::GkRecordsEvent.transaction(requires_new: true) do
             checks = []
             ctx.as(actor) do
-              # the place's own modes count only while the installation is on Varje ställes förval (PLACES)
+              # the place's own modes count only while the installation is on Varje ställe för sig (PLACES)
               r.set_mode!(r::ALL, r::PLACES, reason: 'scenario')
               r.set_mode!(key, 'off', reason: 'scenario')
               c = r.check(key, 'skickat ändå')
@@ -990,7 +990,7 @@ module GkRecords
       # true, target: { group: support_team }, by: olle }.
       # None said at first (or what the thing had), unverified set with a reason (an event verification_changed with
       # before and after, the reason as a note, by the person), the same again writes nothing, verified refused without
-      # an approved review (nothing written), hypothesis after it, cleared to none (an event with none after, the row
+      # an approved review where the place locks it (nothing written) or set by hand where it does not, hypothesis after it, cleared to none (an event with none after, the row
       # kept as none), an unknown status refused, and the row is never deleted. In a transaction that is rolled back.
       ::GkScenarios::Expect.register('records_verification') do |ctx, e|
         sc = ctx.scenario
@@ -1016,13 +1016,20 @@ module GkRecords
                                            ev&.details_reason == 'Scenariots prov: osäkert']
             Verification.set!(obj, 'unverified', user: actor)
             checks << ['same again writes nothing', events.call.count == n0 + 1]
-            refused_verified = begin
-              Verification.set!(obj, 'verified', user: actor)
-              false
-            rescue Verification::Refused
-              true
+            # verified: refused without an approved review where the place locks it to the review, else set by hand
+            if Verification.review_locked?(obj)
+              refused_verified = begin
+                Verification.set!(obj, 'verified', user: actor)
+                false
+              rescue Verification::Refused
+                true
+              end
+              checks << ['verified refused without review', refused_verified && Verification.get(obj) == 'unverified' && events.call.count == n0 + 1]
+            else
+              Verification.set!(obj, 'verified', user: actor, reason: 'Scenariots prov: bekräftat')
+              checks << ['verified by hand', Verification.get(obj) == 'verified' && events.call.count == n0 + 2]
+              Verification.set!(obj, 'unverified', user: actor)
             end
-            checks << ['verified refused without review', refused_verified && Verification.get(obj) == 'unverified' && events.call.count == n0 + 1]
             Verification.set!(obj, 'hypothesis', user: actor)
             checks << ['hypothesis', Verification.get(obj) == 'hypothesis' && events.call.last&.details_hash&.dig('status') == %w[unverified hypothesis]]
             Verification.set!(obj, nil, user: actor)
@@ -1091,7 +1098,7 @@ module GkRecords
             q.add_filter('status_id', '*', [''])
             q.sort_criteria = [%w[gk_records_verification asc]]
             row = q.issues(limit: 500).detect { |i| i.id == issue.id }
-            checks << ['column', row && row.gk_records_verification == Verification.label(status)]
+            checks << ['column', row && row.gk_records_verification == Verification.label(status, place: Verification.place(issue))]
           end
           failed = checks.reject { |_k, ok| ok }.map(&:first)
           result = { 'ok' => failed.empty?, 'want' => checks.map(&:first).join(', '), 'got' => failed.empty? ? 'ok' : "not: #{failed.join(', ')}" }

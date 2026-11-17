@@ -9,15 +9,16 @@
 <fieldset class="box"><legend><%= l(:label_gk_records_docimp_list) %></legend>
   <p><%= l(:text_gk_records_docimp_list) %>
     <%= link_to sprite_icon('download', l(:button_gk_records_docimp_template)), gk_records_document_import_template_path, class: 'icon icon-download' %></p>
-  <table class="list gk-records-docimp-columns">
-    <thead><tr><th><%= l(:label_gk_records_docimp_column) %></th><th><%= l(:field_description) %></th></tr></thead>
-    <tbody>
+  <% columns = [{ key: :column, label: l(:label_gk_records_docimp_column), slot: :grow, html: { class: 'name' } },
+                { key: :description, label: l(:field_description), html: { class: 'description' } }] %>
+  <%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-docimp-columns' }) do %>
     <% GkRecords::DocumentImport::FIELDS.each do |f| %>
-      <tr><td class="name"><%= l("label_gk_records_docimp_field_#{f}") %><% if GkRecords::DocumentImport::REQUIRED.include?(f) %> <span class="required">*</span><% end %></td>
-        <td class="description"><%= l("text_gk_records_docimp_help_#{f}") %></td></tr>
+      <%= gk_gui_stuff_table_row do %>
+        <%= gk_gui_stuff_table_cell(:column) do %><%= l("label_gk_records_docimp_field_#{f}") %><% if GkRecords::DocumentImport::REQUIRED.include?(f) %> <span class="required">*</span><% end %><% end %>
+        <%= gk_gui_stuff_table_cell(:description, l("text_gk_records_docimp_help_#{f}")) %>
+      <% end %>
     <% end %>
-    </tbody>
-  </table>
+  <% end %>
 </fieldset>
 
 <% if @pending.any? %>
@@ -25,7 +26,7 @@
   <ul>
   <% @pending.each do |att| %>
     <li><%= link_to att.filename, gk_records_document_import_preview_path(@project, file: att.token) %>
-      <span class="gk-records-meta"><%= format_time(att.created_on) %>, <%= number_to_human_size(att.filesize) %></span></li>
+      <%= gk_gui_stuff_quiet("#{format_time(att.created_on)}, #{number_to_human_size(att.filesize)}", soft: true) %></li>
   <% end %>
   </ul>
 </fieldset>

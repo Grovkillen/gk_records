@@ -114,13 +114,29 @@ class GkRecordsEvent < ApplicationRecord
   end
 
   # A person in the details is a reference (GkRecords::Ref) and is said by name only to a viewer who may see her;
-  # a private field the viewer may not see is named with the text for a hidden value
+  # a private field the viewer may not see is named with the text for a hidden value. A kind registered with rows:
+  # (Kinds.event_rows) is said in its owner's words, "label: from > to"
   def changes_text(viewer = User.current)
     d = change_details(viewer)
-    found = GkRecords::Ref.principals(d)
+    own = GkRecords::Kinds.respond_to?(:event_rows) ? GkRecords::Kinds.event_rows(kind, d, viewer) : nil
+    found = own ? {} : GkRecords::Ref.principals(d)
     say = ->(v) { GkRecords::Ref.text(v, viewer, found) }
-    shown = d.map { |f, c| c.is_a?(Array) && c.size == 2 ? "#{f}: #{say.call(c[0])} > #{say.call(c[1])}" : "#{f}: #{say.call(c)}" }
+    shown = own&.map { |r| GkRecords::Kinds.row_text(r) }
+    shown ||= d.map do |f, c|
+      if verification_status?(f, c) then GkRecords::Verification.change_line(self, c[0], c[1])
+      elsif GkRecords::Gate.detail?(f, c) then GkRecords::Gate.line(c)
+      elsif c.is_a?(Array) && c.size == 2 then "#{f}: #{say.call(c[0])} > #{say.call(c[1])}"
+      else "#{f}: #{say.call(c)}"
+      end
+    end
     (shown + hidden_fields(viewer).map { |f| "#{f}: #{::I18n.t(:text_gk_records_hidden_value)}" }).join('; ')
+  end
+
+  # A change of the verification status (the detail status of the kind verification_changed), said in the words of
+  # its place rather than as keys
+  def verification_status?(field, change)
+    defined?(GkRecords::Verification::EVENT) && kind == GkRecords::Verification::EVENT && field.to_s == 'status' &&
+      change.is_a?(Array) && change.size == 2 && GkRecords::Verification.respond_to?(:change_line)
   end
 
   # In the reader's language as it stood (a system text kept as a key on the reason note or, on an issue, on the
@@ -136,12 +152,17 @@ class GkRecordsEvent < ApplicationRecord
   # A person the reader may not see is null with a mark (user_hidden, acting_user_hidden), never an id
   # (GkRecords::Visibility); so is the author of the reason note, and so is a person referred to in the details ({
   # "principal" => null, "hidden" => true }; one shown is { "principal" => id, "name" => name }).
-  # A private field the viewer may not see is null, named in details_hidden
+  # A private field the viewer may not see is null, named in details_hidden.
+  # An event written while the gate to GK GUI Stuff was closed keeps the field and its value in details as they are
+  # stored, and says them in words beside, in gk_gui_stuff_text ("GK GUI Stuff: missing", in the reader's language); an
+  # event written with the gate open has no such key.
   def as_api_json(viewer = User.current)
     vis = GkRecords::Visibility
     hidden = hidden_fields(viewer)
     d = hidden.empty? ? details_hash : details_hash.merge(hidden.index_with(nil))
+    gate_line = GkRecords::Gate.line_of(details_hash)
     { id: id, target: "#{target_type}:#{target_id}", kind: kind, details: GkRecords::Ref.api(d, viewer) }
+      .merge(gate_line ? { "#{GkRecords::Gate::DETAIL}_text": gate_line } : {})
       .merge(hidden.empty? ? {} : { details_hidden: hidden })
       .merge(vis.api_user(:user_id, user_id, user, viewer))
       .merge(vis.api_user(:acting_user_id, acting_user_id, acting_user, viewer))

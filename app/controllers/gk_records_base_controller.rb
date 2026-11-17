@@ -2,6 +2,7 @@
 
 # Shared for the records controllers: the target from "key:id", and who may see and write it (the owner's rules)
 class GkRecordsBaseController < ApplicationController
+  include GkRecords::Gate::Controller # core's 404 without GK GUI Stuff (gate.rb)
   before_action :require_login
 
   private

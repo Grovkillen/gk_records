@@ -1,29 +1,38 @@
 <%# Administration > Inläsningar: every reading, newest first, with what it read and what it did %>
-<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records', plugin: 'gk_records' %>
+<% end %>
 <h2><%= l(:label_gk_records_readings) %></h2>
 <p class="info"><%= l(:text_gk_records_readings) %></p>
-<%= form_tag gk_records_readings_path, method: :get, class: 'gk-records-filter' do %>
-  <label><%= l(:field_gk_records_reading_source) %> <%= text_field_tag 'source', params[:source], size: 30 %></label>
-  <%= submit_tag l(:button_apply), name: nil %>
+<%# The filter as core's own folding Filters above the list (GK GUI Stuff's box of choices), open while a filter is set;
+    core's Apply and Clear under it %>
+<%= form_tag gk_records_readings_path, method: :get do %>
+  <%= gk_gui_stuff_choices_box('records.readings_filter', l(:label_filter_plural), open: params[:source].present?) do %>
+    <label><%= l(:field_gk_records_reading_source) %> <%= text_field_tag 'source', params[:source], size: 30 %></label>
+  <% end %>
+  <%= gk_records_filter_buttons(clear: params[:source].present? ? gk_records_readings_path : nil) %>
 <% end %>
 <% if @readings.any? %>
-<table class="list gk-records-readings">
-  <thead><tr><th><%= l(:field_gk_records_reading_read_at) %></th><th><%= l(:field_gk_records_reading_source) %></th>
-    <th><%= l(:field_gk_records_reading_route) %></th><th><%= l(:field_gk_records_reading_source_time) %></th>
-    <th><%= l(:field_gk_records_reading_target) %></th><th><%= l(:label_gk_records_done_by) %></th><th><%= l(:field_gk_records_reading_counts) %></th></tr></thead>
-  <tbody>
+<% columns = [{ key: :read_at, label: l(:field_gk_records_reading_read_at), slot: :grow, html: { class: 'read_at' } },
+              { key: :source, label: l(:field_gk_records_reading_source), html: { class: 'text' } },
+              { key: :route, label: l(:field_gk_records_reading_route), html: { class: 'route' } },
+              { key: :source_time, label: l(:field_gk_records_reading_source_time), html: { class: 'source_time' } },
+              { key: :target, label: l(:field_gk_records_reading_target), html: { class: 'target' } },
+              { key: :user, label: l(:label_gk_records_done_by), html: { class: 'user' } },
+              { key: :counts, label: l(:field_gk_records_reading_counts), html: { class: 'counts' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-readings' }) do %>
   <% @readings.each do |r| %>
-    <tr class="<%= cycle('odd', 'even') %>">
-      <td class="read_at gk-records-when"><%= link_to format_time(r.read_at || r.created_at), gk_records_reading_path(r) %></td>
-      <td class="text"><%= r.source_label %><% if r.made_afterwards %> <span class="badge badge-status-locked"><%= l(:label_gk_records_reading_afterwards) %></span><% end %></td>
-      <td class="route"><%= content_tag('span', l("label_gk_records_reading_route_#{r.route}", default: r.route), class: "gk-records-reading-route gk-records-reading-route-#{r.route}") %><%= " · #{r.format}" if r.format.present? %></td>
-      <td class="source_time"><%= r.source_time ? format_date(User.current.time_to_date(r.source_time)) : '' %></td>
-      <td class="target"><%= GkRecords::Targets.find(r.target_type) ? GkRecords::Targets.thing_label(r.target_type) : r.target_type %></td>
-      <td class="user"><%= r.user ? gk_records_user(r.user) : r.account %></td>
-      <td class="counts"><%= gk_records_reading_counts(r) %></td>
-    </tr>
+    <%= gk_gui_stuff_table_row(html: { class: cycle('odd', 'even') }) do %>
+      <%= gk_gui_stuff_table_cell(:read_at, gk_gui_stuff_quiet(link_to(format_time(r.read_at || r.created_at), gk_records_reading_path(r)), nowrap: true)) %>
+      <%= gk_gui_stuff_table_cell(:source) do %><%= r.source_label %><% if r.made_afterwards %> <span class="badge badge-status-locked"><%= l(:label_gk_records_reading_afterwards) %></span><% end %><% end %>
+      <%= gk_gui_stuff_table_cell(:route) do %><%= content_tag('span', l("label_gk_records_reading_route_#{r.route}", default: r.route), class: "gk-records-reading-route gk-records-reading-route-#{r.route}") %><%= " · #{r.format}" if r.format.present? %><% end %>
+      <%= gk_gui_stuff_table_cell(:source_time, r.source_time ? format_date(User.current.time_to_date(r.source_time)) : nil) %>
+      <%= gk_gui_stuff_table_cell(:target, GkRecords::Targets.find(r.target_type) ? GkRecords::Targets.thing_label(r.target_type) : r.target_type) %>
+      <%= gk_gui_stuff_table_cell(:user, r.user ? gk_records_user(r.user) : r.account) %>
+      <%= gk_gui_stuff_table_cell(:counts, gk_records_reading_counts(r)) %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 <% else %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
 <% html_title l(:label_gk_records_readings) %>

@@ -1,37 +1,48 @@
-<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records', plugin: 'gk_records' %>
+<% end %>
 <%# the project's tab (1.01.000) keeps its own address; the log under Administration and a target's events the plugin's %>
 <% events_path = ->(opts = {}) { @project ? project_gk_records_events_path(@project, opts) : gk_records_events_path(opts) } %>
 <% html_title(*[l(:label_gk_records_events), @target && GkRecords::Targets.label(@target)].compact) %>
 <h2><%= l(:label_gk_records_events) %><%= " » #{GkRecords::Targets.label(@target)}" if @target %></h2>
-<%= form_tag events_path.call, method: :get, class: 'gk-records-filter' do %>
+<%# The filter as core's own folding Filters above the list (GK GUI Stuff's box of choices), open while a filter is set;
+    core's Apply and Clear under it %>
+<%= form_tag events_path.call, method: :get do %>
   <%= hidden_field_tag 'target', params[:target] if params[:target].present? %>
-  <label><%= l(:label_gk_records_kind) %> <%= select_tag 'kind', options_for_select([['', '']] + GkRecords::Kinds.of(:event).map { |k| [k.label, k.key] }, params[:kind]) %></label>
-  <label><%= l(:label_gk_records_date_from) %> <%= date_field_tag 'from', params[:from] %></label>
-  <label><%= l(:label_gk_records_date_to) %> <%= date_field_tag 'to', params[:to] %></label>
-  <label><%= l(:label_search) %> <%= text_field_tag 'q', params[:q].to_s, id: 'gk-records-events-q', size: 30 %></label>
-  <%= submit_tag l(:button_apply), name: nil %>
-  <%# core's Rensa beside Verkställ, only when a filter is set; the target stays, it is the page, not a filter %>
-  <% if @filtered %><%= link_to sprite_icon('reload', l(:button_clear)), events_path.call(target: params[:target].presence), class: 'icon icon-reload' %><% end %>
+  <%= gk_gui_stuff_choices_box('records.events_filter', l(:label_filter_plural), open: @filtered ? true : false) do %>
+    <label><%= l(:label_gk_records_kind) %> <%= select_tag 'kind', options_for_select([['', '']] + GkRecords::Kinds.of(:event).map { |k| [k.label, k.key] }, params[:kind]) %></label>
+    <label><%= l(:label_gk_records_date_from) %> <%= date_field_tag 'from', params[:from] %></label>
+    <label><%= l(:label_gk_records_date_to) %> <%= date_field_tag 'to', params[:to] %></label>
+    <label><%= l(:label_search) %> <%= text_field_tag 'q', params[:q].to_s, id: 'gk-records-events-q', size: 30 %></label>
+  <% end %>
+  <%# Clear only when a filter is set; the target stays, it is the page, not a filter %>
+  <%= gk_records_filter_buttons(clear: @filtered ? events_path.call(target: params[:target].presence) : nil) %>
 <% end %>
 <% if @search_cut %><p class="info"><%= l(:text_gk_records_events_search_cut, max: GkRecords::EventSearch::MAX_SEEN) %></p><% end %>
 <% if @events.any? %>
-<table class="list gk-records-events-table">
-  <thead><tr><th><%= l(:field_created_on) %></th><th><%= l(:label_gk_records_kind) %></th><th><%= l(:label_gk_records_target) %></th>
-    <th><%= l(:label_gk_records_done_by) %></th><th><%= l(:label_gk_records_changes) %></th></tr></thead>
-  <tbody>
+<%# The stacked row keeps the wide row's order, when, kind, thing, who, and the changes last: the kind shares the
+    first place with the time and stands after it, and who did it stands at the end of the line of the thing. The
+    kind's pills are never parted over two lines: the column's nowrap: %>
+<% columns = [{ key: :at, label: l(:field_created_on), slot: :first, html: { class: 'created_on' } },
+              { key: :kind, label: l(:label_gk_records_kind), slot: :first, nowrap: true, html: { class: 'kind' } },
+              { key: :target, label: l(:label_gk_records_target), slot: :grow, html: { class: 'target' } },
+              { key: :user, label: l(:label_gk_records_done_by), slot: :end, html: { class: 'user' } },
+              { key: :changes, label: l(:label_gk_records_changes), slot: :full, html: { class: 'text' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-events-table' }) do %>
   <% @events.each do |e| %>
-    <tr>
-      <td class="created_on gk-records-when"><%= format_time(e.created_at) %></td>
-      <td class="kind"><%= gk_records_event_kind_tag(e.kind) %><%= gk_records_origin_badge(e.origin) %></td>
-      <td class="target"><%= gk_records_ref_link(e.target_type, e.target_id) %></td>
-      <td class="user"><%= gk_records_who(e) %></td>
-      <%# long details fold so the row stays short; the reason always shows in full %>
-      <td class="text"><% if (d = gk_records_details(e, fold: true)).present? %><ul class="gk-records-diff"><%= d %></ul><% end %>
-        <%= gk_records_reason(e) %></td>
-    </tr>
+    <%= gk_gui_stuff_table_row do %>
+      <%= gk_gui_stuff_table_cell(:at, gk_gui_stuff_quiet(format_time(e.created_at), nowrap: true)) %>
+      <%= gk_gui_stuff_table_cell(:kind, safe_join([gk_records_event_kind_tag(e.kind), gk_records_origin_badge(e.origin)])) %>
+      <%= gk_gui_stuff_table_cell(:target, gk_records_ref_link(e.target_type, e.target_id)) %>
+      <%# one element in the cell: the cell at the end of the line lays its children out side by side when the row
+          stacks, and the name, "(acting as …" and the mark are one running text %>
+      <%= gk_gui_stuff_table_cell(:user, content_tag(:span, gk_records_who(e))) %>
+      <%# the changes as GK GUI Stuff's values (long ones fold so the row stays short), then the reason, always in full %>
+      <%= gk_gui_stuff_table_cell(:changes, safe_join([gk_records_details(e, fold: true), gk_records_reason(e)].select(&:present?))) %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 <%# 1.01.000: the same rows as CSV, with the page's filters, as core's "Also available in" %>
 <% other_formats_links do |f| %>
   <%= f.link_to 'CSV', url: params.permit(:target, :kind, :user_id, :from, :to, :q).to_h.merge(project_id: @project&.identifier).compact %>

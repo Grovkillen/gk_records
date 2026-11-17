@@ -121,11 +121,9 @@ class GkRecordsEventQuery < Query
       view.content_for(:header_tags) { view.stylesheet_link_tag('gk_records', plugin: 'gk_records') }
     end
     case column.name
-    when :kind_label then view.content_tag('span', GkRecords::Kinds.label(:event, event.kind), class: 'gk-records-kindtag')
+    when :kind_label then view.gk_records_event_kind_tag(event.kind)
     when :target_label then view.gk_records_ref_link(event.target_type, event.target_id)
-    when :changes_text
-      d = view.gk_records_details(event)
-      d.present? ? view.content_tag('ul', d, class: 'gk-records-diff') : ''
+    when :changes_text then view.gk_records_details(event)
     when :reason_text then view.gk_records_reason(event)
     when :user then view.gk_records_who(event)
     end

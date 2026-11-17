@@ -7,7 +7,8 @@ class GkRecordsNote < ApplicationRecord
   # instants with their zone (migration 001)
   GkRecordsInstant.attributes!(self, :created_at, :voided_at)
 
-  ORIGINS = %w[human system import agent].freeze
+  # move: a record moved to another level when its level was switched off at its place (Verification.set_level!)
+  ORIGINS = %w[human system import agent move].freeze
 
   belongs_to :user, optional: true
   belongs_to :parent, class_name: 'GkRecordsNote', optional: true

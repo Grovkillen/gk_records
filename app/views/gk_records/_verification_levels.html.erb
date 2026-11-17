@@ -1,0 +1,105 @@
+<%# The levels of one verification place (local place: "issue:<tracker_id>", Verification::NEW_TRACKER_PLACE for a
+    tracker not created yet, "issue", "gk_records_assessment", a place another plugin registered), drawn inside the form
+    where the place is set up and saved with that form's Save: the five steps of the ladder in the place's words, the
+    forced ones ticked and disabled as core's locked check boxes, the optional ones as plain check boxes
+    gk_records_vlevels[<place>][<step>] with a hidden 0 before each. Nothing is saved when a box is ticked. A level
+    that is off but kept by its records is ticked with the value kept (left as it is). Unticking an optional level
+    that has records opens a box (GkGui.popover) with how many, a segment with the levels that stay (Verifierad only where
+    the place does not lock it to the review), the reason as the reason place records.verification asks for it, and
+    Flytta och slå av with Avbryt; for a kept level also Behåll nivån. The box only fills the hidden fields
+    [move][<step>] and [reason][<step>]; the move is made when the page is saved. The box is drawn here hidden and
+    copied by gk_records_vlevels.js; its segment and reason have no name, so the form never posts them. A form drawn
+    again after a refused save shows what was posted. %>
+<% v = GkRecords::Verification %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records_vlevels', plugin: 'gk_records' %>
+<% end %>
+<% lv = v.levels(place) %>
+<% chosen = v.chosen_optional(place) %>
+<% locked = v.place_locked?(place) %>
+<% issues = place.to_s == 'issue' || v::Ladder.tracker_of(place) %>
+<% counts = v::OPTIONAL.to_h { |s| [s, lv.include?(s) ? v.count_at(place, s) : 0] } %>
+<% dom = "gk-records-vlevels-#{place.to_s.parameterize}" %>
+<% field = "#{v::LEVELS_PARAM}[#{place}]" %>
+<% sent = params[v::LEVELS_PARAM].respond_to?(:key?) && params[v::LEVELS_PARAM].key?(place.to_s) ? v::Ladder.posted_levels(params[v::LEVELS_PARAM][place.to_s]) : nil %>
+<% reason_mode = GkRecords::Reasons.off?(v::REASON) ? :off : (GkRecords::Reasons.required?(v::REASON) ? :required : :optional) %>
+<%# after a refused save: the levels switched off whose target or reason the save refused, so their box opens again %>
+<% refused = [] %>
+<% if sent %>
+  <% plan = v::Ladder.level_plan(sent, chosen: chosen, levels: lv, counts: counts.slice(*sent['off']), locked: locked) %>
+  <% refused = plan['errors'].filter_map { |st, why| st if why == :target } %>
+  <% plan['moves'].each { |st, m| refused << st unless refused.include?(st) || GkRecords::Reasons.check(v::REASON, m['reason']).ok } %>
+<% end %>
+<%# in core's tabular forms (the tracker, the settings) under the row's value: GK GUI Stuff's row of a tabular form %>
+<div class="gk-gui-stuff-tabular-row gk-records-vlevels" id="<%= dom %>" data-gk-records-vlevels="<%= place %>">
+  <%# GK GUI Stuff's choice list, many: each row the check box, the level's pill as its word and the quiet hint after
+      it; the row keeps records' own class and state for gk_records_vlevels.js, the pill the mark of the box's anchor %>
+  <% rows = v::LADDER.map do |s|
+       state = v::Ladder.level_state(s, lv, chosen)
+       forced = state == :forced
+       cid = "#{dom}-#{s}"
+       word = gk_gui_stuff_pill(v.pill_label(s, place: place), role: v.role(s), dot: true, html: { class: 'gk-records-vlevel-word' })
+       row_html = { class: 'gk-records-vlevel', data: { gk_records_vlevel_state: state } }
+       if forced
+         # a forced level is ticked and disabled, as core draws a check box that cannot be changed; never posted
+         parts = [l(:text_gk_records_vlevels_forced)]
+         parts << l(locked ? :text_gk_records_vlevels_review : :text_gk_records_vlevels_hand) if s == 'verified'
+         next { word: word, hint: parts.join(' · '), checked: true, disabled: true, id: cid, html: row_html }
+       end
+       # the value as drawn (kept stays as it is), and as sent again after Behåll nivån in a refused save
+       value = state == :kept ? v::Ladder::KEPT : '1'
+       now_value = state == :kept && sent && sent['on'].include?(s) ? '1' : value
+       ticked = sent && (sent['on'] + sent['off'] + sent['kept']).include?(s) ? !sent['off'].include?(s) : state != :off
+       parts = [l(:text_gk_records_vlevels_optional)]
+       parts << (issues ? l(:text_gk_records_vlevels_count_issues, count: counts[s]) : l(:text_gk_records_vlevels_count, count: counts[s])) if counts[s].positive?
+       parts << l(:text_gk_records_vlevels_kept) if state == :kept
+       after = nil
+       if counts[s].positive?
+         to = sent ? sent['move'][s].to_s : ''
+         planned = if to.present? && !ticked then l(:text_gk_records_vlevels_planned, step: v.pill_label(to, place: place))
+                   elsif state == :kept && sent && sent['on'].include?(s) then l(:text_gk_records_vlevels_keep_planned)
+                   end
+         # what the box fills in, and the quiet line that says what the page's Save will do with the level
+         after = safe_join([hidden_field_tag("#{field}[move][#{s}]", ticked ? '' : to, id: nil, data: { gk_records_vlevels_field: "move-#{s}" }),
+                            hidden_field_tag("#{field}[reason][#{s}]", ticked ? '' : (sent ? sent['reason'][s].to_s : ''), id: nil,
+                                             data: { gk_records_vlevels_field: "reason-#{s}" }),
+                            gk_gui_stuff_quiet(planned, html: { hidden: planned.blank?,
+                                                                data: { gk_records_vlevel_planned: l(:text_gk_records_vlevels_planned, step: '%{step}'),
+                                                                        gk_records_vlevel_keep_planned: l(:text_gk_records_vlevels_keep_planned) } })])
+       end
+       { name: "#{field}[#{s}]", value: now_value, unchecked: '0', checked: ticked, id: cid, word: word, hint: parts.join(' · '), after: after, html: row_html,
+         input: { data: { gk_records_vlevel_check: s, gk_records_vlevel_value: value, gk_records_vlevel_refused: refused.include?(s) ? '1' : nil } } }
+     end %>
+  <%= gk_gui_stuff_choice_list(field, rows, mode: :many, label: l(:label_gk_records_vlevels_of, title: v.title(place))) %>
+  <p class="gk-records-vlevels-info"><em class="info">
+    <%= l(:text_gk_records_vlevels_with_form) %>
+    <% if defined?(GkFields::Translations) && GkRecords::Features.on?('fields.translations') && respond_to?(:gk_fields_translations_path) %>
+      <%= l(:text_gk_records_vlevels_words, link: link_to(l(:label_gk_records_vlevels_translations), gk_fields_translations_path(type: GkRecords::VerificationTexts::SOURCE))).html_safe %>
+    <% end %>
+    <%= l(:text_gk_records_vlevels_fixed) %></em></p>
+  <% v::OPTIONAL.each do |s| %>
+    <% next unless counts[s].positive? %>
+    <% targets = v::Ladder.move_targets(lv, s, locked) %>
+    <% next if targets.size < 2 %>
+    <% word = v.pill_label(s, place: place) %>
+    <% kept = v::Ladder.level_state(s, lv, chosen) == :kept %>
+    <% picked = sent && targets.include?(sent['move'][s].to_s) ? sent['move'][s].to_s : v::Ladder.default_target(targets) %>
+    <div class="gk-records-vlevels-move" hidden data-gk-records-vlevels-move="<%= s %>" data-gk-records-vlevels-need="<%= reason_mode == :required ? '1' : '0' %>">
+      <p><strong><%= issues ? l(:text_gk_records_vlevels_move_head_issues, count: counts[s], step: word) : l(:text_gk_records_vlevels_move_head, count: counts[s], step: word) %></strong>
+        <%= l(:text_gk_records_vlevels_move_text) %></p>
+      <p><%= gk_gui_stuff_view_segment("gk_records_vlevels_#{place.to_s.parameterize(separator: '_')}_#{s}",
+                                       targets.first(5).map { |t| [v.pill_label(t, place: place), t] }, picked,
+                                       label: l(:label_gk_records_vlevels_move_to), remember: false,
+                                       html: { data: { gk_records_vlevels_target: '1' } }) %></p>
+      <p><em class="info"><%= l(:text_gk_records_vlevels_on_save) %></em></p>
+      <% if kept %><p><em class="info"><%= l(:text_gk_records_vlevels_keep) %></em></p><% end %>
+      <div class="gk-gui-stuff-popover-buttons">
+        <button type="button" data-gk-records-vlevels-go="1"><%= l(:button_gk_records_vlevels_move) %></button>
+        <% if kept %><button type="button" data-gk-records-vlevels-keep="1"><%= l(:button_gk_records_vlevels_keep) %></button><% end %>
+        <button type="button" data-gk-gui-popover-cancel="1"><%= l(:button_cancel) %></button>
+      </div>
+      <% unless reason_mode == :off %><%= gk_gui_stuff_reason_block(required: reason_mode == :required, id: "#{dom}-#{s}-reason") %><% end %>
+    </div>
+  <% end %>
+</div>

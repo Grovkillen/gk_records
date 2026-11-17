@@ -6,6 +6,6 @@
 <% if origin.present? %>
 <% cited = gk_records_citations(document) %>
 <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
-<p class="gk-records-document-origin" id="gk-records-document-origin"><span class="gk-records-meta"><%= l(:label_gk_records_docimp_origin) %>:</span><%= origin %>
+<p class="gk-records-document-origin" id="gk-records-document-origin"><%= gk_gui_stuff_quiet("#{l(:label_gk_records_docimp_origin)}:", soft: true) %><%= origin %>
   <% if cited.present? %><br><%= cited %><% end %></p>
 <% end %>

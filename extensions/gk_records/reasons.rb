@@ -3,16 +3,16 @@
 module GkRecords
   # Skälfälten. One way for every place in the environment where a person is asked for a reason. A place declares itself
   # with its mode today as the default, so nothing changes until the administrator changes it:
-  # GkRecords::Reasons.register('people.relation_end', plugin::gk_people, label::label_x, default::required) draws the
-  # shared field (gk_records_reason_field, GkRecordsHelper) and lets the server decide: r =
+  # GkRecords::Reasons.register('people.relation_end', plugin::gk_people, label::label_x, default::required) is asked for
+  # by GK GUI Stuff's button with a reason (gk_gui_stuff_reason_button; gk_records_reason_field is the shell for the
+  # callers that have not moved yet) and lets the server decide: r =
   # GkRecords::Reasons.check('people.relation_end', params[:reason]) return fail(r.error) unless
   # r.ok...Events.write(..., reason: r.text) Modes: off (no field, no reason kept), optional, required (blank is
   # refused, with an optional least length).
   # Administration > Skäl sets a mode for the installation and per place (Enligt systeminställningen, Av, Valfritt, Krävs);
-  # every change is an event. A fixed place keeps its own requirement and gets the help only. The help: the person's own
-  # latest reason for the place as a greyed suggestion that counts only when chosen, earlier reasons to choose, and, on
-  # the administrator's places only, the most common ones in the installation. A #123 in a reason becomes a link from
-  # the reason to the issue (kind reason_cites).
+  # every change is an event. A fixed place keeps its own requirement. The earlier reasons for a place (suggestions) are
+  # read for the scenarios; no field offers them. A #123 in a reason becomes a link from the reason to the issue (kind
+  # reason_cites).
   module Reasons
     MODES = %w[off optional required].freeze
     ALL = '*'          # the row for the installation
@@ -40,6 +40,8 @@ module GkRecords
     def all = (@all ||= {})
 
     def register(key, plugin:, label: nil, default: :optional, admin: false, min: nil, fixed: false)
+      return nil unless GkRecords.gui? # no reason place without GK GUI Stuff (gate.rb)
+
       k = key.to_s
       d = default.to_s
       raise ArgumentError, "reason place #{k}: default #{d} is not one of #{MODES.join(', ')}" unless MODES.include?(d)
@@ -49,12 +51,6 @@ module GkRecords
     end
 
     def find(key) = all[key.to_s]
-
-    # The person's earlier reasons as suggestions only where a plugin gives a search field of the select2 kind and
-    # says so here;
-    # without it the field has no suggestion, no Använd for one and no list
-    def suggest_with!(plugin) = (@suggest_by = plugin.to_s)
-    def suggest? = !@suggest_by.nil?
 
     # The memory is shared by the threads of the process; inside a transaction the table answers and the memory is left alone
     def stored
@@ -91,7 +87,7 @@ module GkRecords
     # What holds now: a fixed place its own default; else the place's own mode, else the installation's, else the default.
     # A place nobody declared is optional (a forgotten declaration never refuses a save).
     # The installation's Av, Valfritt or Krävs holds for every place and locks the places' own choices;
-    # only with Varje ställes förval (PLACES) does a place's own mode
+    # only with Varje ställe för sig (PLACES) does a place's own mode
     # count. A place's stored choice stays and holds again when the installation is set back to PLACES.
     def locked? = MODES.include?(installation_mode)
 
@@ -208,14 +204,30 @@ module GkRecords
          .sort_by { |pl, _| Redmine::Plugin.registered_plugins[pl.to_sym]&.name.to_s }
     end
 
-    def register_records!
+    # The link kind of a #123 in a reason. Registered whatever the gate says (init.rb): Events.write makes the links
+    # also while the gate is closed (link_issues), and a link not made then is never made afterwards.
+    def register_link!
+      Kinds.register_link(LINK, plugin: :gk_records, label_key: 'label_gk_records_link_reason_cites',
+                                reverse_label_key: 'label_gk_records_link_reason_cited_by')
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] reason link kind not registered: #{e.message}")
+    end
+
+    # The target and the kind of a mode's change. Registered whatever the gate says (init.rb): a mode changed while the
+    # gate is closed (set_mode! from a task or a scenario step) is an event all the same. The address is the page
+    # Administration > Skäl, which is closed with the gate, so the target has none then.
+    def register_target!
       Targets.register('reason_mode', model: 'GkRecordsReasonMode',
                                       visible: ->(_m, user) { user.admin? }, editable: ->(_m, user) { user.admin? },
                                       label: ->(m) { "#{::I18n.t(:label_gk_records_reasons)}: #{m.place_label}" },
-                                      url: ->(_m) { Rails.application.routes.url_helpers.gk_records_reasons_path })
+                                      url: ->(_m) { GkRecords.gui? ? Rails.application.routes.url_helpers.gk_records_reasons_path : nil })
       Kinds.register_event(KIND, plugin: :gk_records, label_key: 'label_gk_records_event_reason_mode_changed', target: 'reason_mode')
-      Kinds.register_link(LINK, plugin: :gk_records, label_key: 'label_gk_records_link_reason_cites',
-                                reverse_label_key: 'label_gk_records_link_reason_cited_by')
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] reason mode target not registered: #{e.message}")
+    end
+
+    # Records' own places: only with GK GUI Stuff (init.rb), like every place (register)
+    def register_records!
       register('records.reason_modes', plugin: :gk_records, label: :label_gk_reason_records_reason_modes, default: :optional, admin: true)
       register('records.settings', plugin: :gk_records, label: :label_gk_reason_records_settings, default: :optional, admin: true)
       register('records.link_manual', plugin: :gk_records, label: :label_gk_reason_records_link_manual, default: :required)
@@ -229,13 +241,23 @@ module GkRecords
 end
 
 module GkRecords
-  # The shared field's Använd and chips work on every page, also in a form fetched into a popup (a script inside a
-  # fetched fragment never runs); the helper's own script is then a no-op (one listener per page)
+  # The shell's script and its few rules (gk_records_reason_field and the settings pages' reason) on every page for a
+  # logged-in person, so that a form fetched into a popup has them too (a script inside a fetched fragment never runs);
+  # its words in the page's language as data, never as code
   class ReasonHooks < Redmine::Hook::ViewListener
-    def view_layouts_base_body_bottom(context = {})
+    include GkRecords::Gate::Listener # silent without GK GUI Stuff (gate.rb)
+
+    def view_layouts_base_html_head(_context = {})
       return '' unless User.current.logged?
 
-      context[:hook_caller].respond_to?(:gk_records_reason_script) ? context[:hook_caller].gk_records_reason_script : ''
+      stylesheet_link_tag('gk_records_reason', plugin: 'gk_records') + javascript_include_tag('gk_records_reason', plugin: 'gk_records')
+    end
+
+    def view_layouts_base_body_bottom(_context = {})
+      return '' unless User.current.logged?
+
+      texts = { missing: ::I18n.t(:error_gk_records_reason_required), short: ::I18n.t(:error_gk_records_reason_short, count: '%{count}') }
+      content_tag('script', texts.to_json.html_safe, type: 'application/json', id: 'gk-records-reason-texts')
     end
   end
 end

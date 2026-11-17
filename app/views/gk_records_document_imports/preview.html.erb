@@ -1,60 +1,74 @@
 <%# Läs in dokument, step two: per row what the run would do, the files in the zip no row names, and the run. Nothing
     but the zip is saved until the run. %>
 <% html_title l(:label_gk_records_docimp) %>
-<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records', plugin: 'gk_records' %>
+<% end %>
 <h2><%= link_to l(:label_document_plural), project_documents_path(@project) %> &#187;
   <%= link_to l(:label_gk_records_docimp), gk_records_document_import_path(@project) %> &#187; <%= @kept.filename %></h2>
 
 <% if @error %>
-  <div class="flash error"><%= @error %></div>
+  <%# the error as GK GUI Stuff's banner in the role alarm, drawn by gk_records.js from this mark; the text stays in the
+      page for a screen reader until the banner takes its place %>
+  <p class="gk-records-banner" data-gk-records-banner="alarm"><%= @error %></p>
 <% else %>
 <% pv = @preview %>
 <p><%= l(:text_gk_records_docimp_summary, list: pv[:list], rows: pv[:rows].size) %>
-  <span class="gk-records-meta"><%= l(:field_gk_records_docimp_zip_sha256) %>: <span class="gk-records-sha"><%= @kept.digest %></span></span></p>
+  <%= gk_gui_stuff_quiet("#{l(:field_gk_records_docimp_zip_sha256)}: #{@kept.digest}", soft: true) %></p>
 <% if pv[:stop] %>
   <p class="warning"><%= l(:text_gk_records_docimp_stop) %></p>
 <% end %>
 <% if pv[:unread].any? %>
-  <p class="gk-records-meta"><%= l(:text_gk_records_docimp_unread, columns: pv[:unread].join(', ')) %></p>
+  <%= gk_gui_stuff_quiet(l(:text_gk_records_docimp_unread, columns: pv[:unread].join(', ')), soft: true, tag: :p) %>
 <% end %>
 
 <%= form_tag(gk_records_document_import_run_path(@project), id: 'gk-records-docimp-form') do %>
+<%# Enter in a field never runs the import past its question: the form's first submit button is this one, off, and
+    HTML sends no form by Enter when that button is off; Kör is sent only from its box %>
+<button type="submit" disabled hidden aria-hidden="true" tabindex="-1"></button>
 <%= hidden_field_tag 'file', @kept.token, id: nil %>
 <div class="autoscroll">
-<table class="list gk-records-docimp-rows">
-  <thead><tr><th><%= l(:label_gk_records_docimp_line) %></th><th><%= l(:label_gk_records_docimp_field_file) %></th><th><%= l(:field_filesize) %></th>
-    <th>SHA-256</th><th><%= l(:label_gk_records_docimp_field_title) %></th><th><%= l(:label_project) %></th><th><%= l(:field_category) %></th>
-    <th><%= l(:label_gk_records_docimp_field_source_issue) %></th><th><%= l(:label_gk_records_docimp_outcome) %></th></tr></thead>
-  <tbody>
+<%# GK GUI Stuff's table: a row that is not read in has the error's ground, and what is wrong stands under its status;
+    a size is never broken over lines (the column's nowrap:) %>
+<% columns = [{ key: :line, label: l(:label_gk_records_docimp_line), slot: :first, html: { class: 'line' } },
+              { key: :file, label: l(:label_gk_records_docimp_field_file), slot: :grow, html: { class: 'text' } },
+              { key: :size, label: l(:field_filesize), slot: :end, nowrap: true, html: { class: 'size' } },
+              { key: :sha, label: 'SHA-256', slot: :full, html: { class: 'digest' } },
+              { key: :title, label: l(:label_gk_records_docimp_field_title), slot: :full, html: { class: 'name' } },
+              { key: :project, label: l(:label_project), html: { class: 'project' } },
+              { key: :category, label: l(:field_category), html: { class: 'category' } },
+              { key: :issue, label: l(:label_gk_records_docimp_field_source_issue), html: { class: 'subject' } },
+              { key: :outcome, label: l(:label_gk_records_docimp_outcome), slot: :full, html: { class: 'status' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-docimp-rows' }) do %>
   <% pv[:rows].each do |r| %>
-    <tr class="gk-records-docimp-<%= r['status'] %>">
-      <td class="line"><%= r['line'] %></td>
-      <td class="text"><%= r['entry'] || r['file'].presence || '-' %></td>
-      <td class="size"><%= r['bytes'] ? number_to_human_size(r['bytes']) : '' %></td>
-      <td class="digest gk-records-sha"><%= r['sha256'] %></td>
-      <td class="name"><%= r['title'].presence || (r['entry'] && File.basename(r['entry'])) %>
+    <%= gk_gui_stuff_table_row(state: r['errors'].any? ? :error : nil, html: { class: "gk-records-docimp-row-#{r['status']}" }) do %>
+      <%= gk_gui_stuff_table_cell(:line, r['line']) %>
+      <%= gk_gui_stuff_table_cell(:file, r['entry'] || r['file'].presence || '-') %>
+      <%= gk_gui_stuff_table_cell(:size, r['bytes'] ? number_to_human_size(r['bytes']) : nil) %>
+      <%= gk_gui_stuff_table_cell(:sha, r['sha256'].present? ? content_tag(:code, r['sha256']) : nil) %>
+      <%= gk_gui_stuff_table_cell(:title) do %><%= r['title'].presence || (r['entry'] && File.basename(r['entry'])) %>
         <% [%w[source_text label_gk_records_docimp_field_source_text], %w[edition label_gk_records_docimp_field_edition], %w[date label_gk_records_docimp_field_date]].each do |f, key| %>
-          <% if r[f].present? %><div class="gk-records-meta"><%= l(key).upcase_first %>: <%= r[f] %></div><% end %>
-        <% end %></td>
-      <td class="project"><%= r['project'] ? r['project'].name : r['subproject'] %></td>
-      <td class="category"><%= r['category']&.name %></td>
-      <td class="subject"><% if r['issue'] %><%= link_to_issue r['issue'], subject: true, tracker: false %><% elsif r['source_issue'].present? %><%= r['source_issue'] %><% end %></td>
-      <td class="status"><strong><%= content_tag('span', l("label_gk_records_docimp_status_#{r['status']}"), class: "gk-records-docimp-status gk-records-docimp-status-#{r['status']}") %></strong>
+          <% if r[f].present? %><%= gk_gui_stuff_quiet("#{l(key).upcase_first}: #{r[f]}", soft: true, tag: :div) %><% end %>
+        <% end %><% end %>
+      <%= gk_gui_stuff_table_cell(:project, r['project'] ? r['project'].name : r['subproject']) %>
+      <%= gk_gui_stuff_table_cell(:category, r['category']&.name) %>
+      <%= gk_gui_stuff_table_cell(:issue, r['issue'] ? link_to_issue(r['issue'], subject: true, tracker: false) : r['source_issue'].presence) %>
+      <%= gk_gui_stuff_table_cell(:outcome, message: r['errors']) do %><%= gk_records_docimp_status(r['status']) %>
         <% if r['twin_line'] %><div><%= l(:text_gk_records_docimp_twin, line: r['twin_line']) %></div><% end %>
         <% r['already'].each do |d| %><div><%= l(:text_gk_records_docimp_already) %> <%= link_to d.title, document_path(d) %></div><% end %>
         <% if %w[already again].include?(r['status']) %>
-          <label class="gk-records-docimp-again"><%= check_box_tag 'add_again[]', r['line'], r['status'] == 'again', id: "gk_records_docimp_again_#{r['line']}" %>
-            <%= l(:label_gk_records_docimp_add_again) %></label>
-        <% end %>
-        <% r['errors'].each do |m| %><div class="gk-records-docimp-error"><%= m %></div><% end %></td>
-    </tr>
+          <%= gk_gui_stuff_choice_list('add_again[]', [{ value: r['line'], word: l(:label_gk_records_docimp_add_again), checked: r['status'] == 'again',
+                                                         id: "gk_records_docimp_again_#{r['line']}" }],
+                                       mode: :many, label: l(:label_gk_records_docimp_add_again)) %>
+        <% end %><% end %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 </div>
 
 <% if pv[:extra].any? %>
-  <p><strong><%= l(:label_gk_records_docimp_extra) %></strong> <span class="gk-records-meta"><%= l(:text_gk_records_docimp_extra) %></span></p>
+  <p><strong><%= l(:label_gk_records_docimp_extra) %></strong> <%= gk_gui_stuff_quiet(l(:text_gk_records_docimp_extra), soft: true) %></p>
   <ul class="gk-records-docimp-extra"><% pv[:extra].each do |n| %><li><%= n %></li><% end %></ul>
 <% end %>
 
@@ -64,12 +78,28 @@
     <%= text_field_tag 'source_label', params[:source_label].presence || File.basename(pv[:list], '.*'), size: 50, maxlength: 200, id: 'gk_records_docimp_source' %>
     <em class="info"><%= l(:text_gk_records_docimp_source) %></em></p>
 </div>
-<p><%= submit_tag l(:button_gk_records_docimp_run, count: todo), name: nil, disabled: pv[:stop] || todo.zero?,
-                  data: { confirm: l(:text_gk_records_docimp_confirm, count: todo) } %>
+<%# Kör asks first in GK GUI Stuff's popover (what it makes, then Kör and Avbryt); off while nothing can be made. Not
+    in a p: the parser would close it at the box %>
+<%= gk_gui_stuff_button_row do %>
+  <% if pv[:stop] || todo.zero? %>
+    <%= submit_tag l(:button_gk_records_docimp_run, count: todo), name: nil, disabled: true %>
+  <% else %>
+    <%= gk_gui_stuff_popover(l(:button_gk_records_docimp_run, count: todo), ellipsis: false) do %>
+      <p><%= l(:text_gk_records_docimp_confirm, count: todo) %></p>
+      <%= gk_gui_stuff_popover_buttons(l(:button_gk_records_docimp_run, count: todo)) %>
+    <% end %>
+  <% end %>
   <%# the same form shown again with the choices made (Lägg till ändå), without saving anything %>
-  <button type="submit" formaction="<%= gk_records_document_import_preview_path(@project) %>" formmethod="get"><%= l(:button_gk_records_docimp_preview_again) %></button></p>
+  <button type="submit" formaction="<%= gk_records_document_import_preview_path(@project) %>" formmethod="get"><%= l(:button_gk_records_docimp_preview_again) %></button>
+<% end %>
 <% end %>
 <% end %>
 
-<%= button_to l(:button_gk_records_docimp_discard), gk_records_document_import_discard_path(@project), params: { file: @kept.token }, method: :post,
-              data: { confirm: l(:text_gk_records_docimp_discard_confirm) } %>
+<%# Kasta asks first in GK GUI Stuff's popover in the role alarm: the zip goes and nothing is read in %>
+<%= gk_gui_stuff_popover(l(:button_gk_records_docimp_discard), role: :alarm) do %>
+  <%= form_tag gk_records_document_import_discard_path(@project), method: :post do %>
+    <%= hidden_field_tag 'file', @kept.token, id: nil %>
+    <p><%= l(:text_gk_records_docimp_discard_confirm) %></p>
+    <%= gk_gui_stuff_popover_buttons(l(:button_gk_records_docimp_discard), alarm: true) %>
+  <% end %>
+<% end %>

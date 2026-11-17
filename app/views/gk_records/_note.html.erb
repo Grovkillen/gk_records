@@ -1,37 +1,37 @@
+<%# One note as GK GUI Stuff's entry: the head (the kind's pill, who, when, the number, where it came from and what it
+    corrects, the actions at its end), the text, the quiet line under it and the answers as the entry's thread. A
+    voided note is folded under who voided it, when and why; a corrected one has its text in the soft tone. The id
+    gk-records-note-<id> is the note's anchor; the actions keep records' own classes for gk_records.js. %>
 <% corrected_by = note.corrected_by.to_a %>
-<div class="gk-records-note<%= ' gk-records-voided' if note.voided? %><%= ' gk-records-corrected' if corrected_by.any? %>" id="gk-records-note-<%= note.id %>">
-  <div class="gk-records-note-head">
-    <span class="gk-records-kindtag gk-records-kind-<%= note.kind %>"><%= GkRecords::Kinds.label(:note, note.kind) %></span>
-    <%= gk_records_user(note.user, system: false, on: @target) %>
-    <span class="gk-records-when"><%= format_time(note.created_at) %></span>
-    <a href="#gk-records-note-<%= note.id %>" class="gk-records-num">#<%= note.id %></a><%= gk_records_origin_badge(note.origin) %>
-    <% note.corrects.each do |c| %><span class="gk-records-meta"><%= l(:text_gk_records_corrects) %> <%= link_to "##{c.id}", "#gk-records-note-#{c.id}" %></span><% end %>
-    <% if editable && !note.voided? %>
-      <span class="gk-records-actions">
-        <a href="#" class="gk-records-reply" data-id="<%= note.id %>"><%= l(:button_gk_records_reply) %></a>
-        <% if note.user_id == User.current.id || User.current.admin? %>
-          <a href="#" class="gk-records-correct" data-id="<%= note.id %>"><%= l(:button_gk_records_correct) %></a>
-          <a href="#" class="gk-records-void" data-url="<%= gk_records_note_void_path(note) %>" data-prompt="<%= l(:text_gk_records_void_prompt) %>" data-reason-mode="<%= GkRecords::Reasons.mode('records.note_void') %>"><%= l(:button_gk_records_void) %></a>
-        <% end %>
-      </span>
+<% anchor = "gk-records-note-#{note.id}" %>
+<% head = safe_join([gk_records_origin_badge(note.origin).presence,
+                     *note.corrects.map { |c| gk_gui_stuff_quiet(safe_join([l(:text_gk_records_corrects), ' ', link_to("##{c.id}", "#gk-records-note-#{c.id}")]), soft: true) }].compact) %>
+<% actions = nil %>
+<% if editable && !note.voided? %>
+  <%# Svara and Rätta are icon buttons with the word as the tooltip. Makulera is GK GUI Stuff's button with a reason
+      from its icon alone, irreversible since a void cannot be undone: it always asks in its box in the role alarm,
+      with the reason as the place records.note_void has it (Krävs, Valfritt, or none when Av) %>
+  <% actions = capture do %>
+    <%= gk_gui_stuff_icon_button('comment', l(:button_gk_records_reply), html: { class: 'gk-records-reply', data: { id: note.id } }) %>
+    <% if note.user_id == User.current.id || User.current.admin? %>
+      <%= gk_gui_stuff_icon_button('edit', l(:button_gk_records_correct), html: { class: 'gk-records-correct', data: { id: note.id } }) %>
+      <%= gk_gui_stuff_reason_button(l(:button_gk_records_void), reason: 'records.note_void', url: gk_records_note_void_path(note),
+                                     info: l(:text_gk_records_void_info), icon: 'del', icon_only: true, irreversible: true) %>
     <% end %>
-  </div>
-  <% if note.voided? %>
-    <details class="gk-records-voided-body">
-      <summary><%= l(:text_gk_records_voided, user: GkRecords::Visibility.name_for(note.voided_by, system: ''), when: format_time(note.voided_at)) %><%= gk_records_restricted_mark(note.voided_by) %><% if note.void_reason %>: <%= note.void_reason.shown_body %><% end %></summary>
-      <div class="gk-records-body-text"><%= gk_records_light(note.shown_body) %></div>
-      <%= gk_records_text_now(note.body_now) %>
-    </details>
-  <% else %>
-    <%# A system text in the reader's language as it stood, and the text now when it has changed %>
-    <div class="gk-records-body-text"><%= gk_records_light(note.shown_body) %></div>
-    <%= gk_records_text_now(note.body_now) %>
   <% end %>
-  <% if corrected_by.any? %><div class="gk-records-meta"><%= l(:text_gk_records_corrected_by) %> <%= safe_join(corrected_by.map { |c| link_to("##{c.id}", "#gk-records-note-#{c.id}") }, ', ') %></div><% end %>
-  <% replies = notes.select { |r| r.parent_id == note.id } %>
-  <% if replies.any? %>
-    <div class="gk-records-replies">
-      <% replies.each do |r| %><%= render partial: 'gk_records/note', locals: { note: r, notes: notes, editable: editable } %><% end %>
-    </div>
-  <% end %>
-</div>
+<% end %>
+<%# voided: who, when and why are the heading the note is folded under %>
+<% voided = nil %>
+<% if note.voided? %>
+  <% voided = capture do %><%= l(:text_gk_records_voided, user: GkRecords::Visibility.name_for(note.voided_by, system: ''), when: format_time(note.voided_at)) %><%= gk_records_restricted_mark(note.voided_by) %><% if note.void_reason %>: <%= note.void_reason.shown_body %><% end %><% end %>
+<% end %>
+<% under = corrected_by.any? ? safe_join([l(:text_gk_records_corrected_by), ' ', safe_join(corrected_by.map { |c| link_to("##{c.id}", "#gk-records-note-#{c.id}") }, ', ')]) : nil %>
+<% replies = notes.select { |r| r.parent_id == note.id } %>
+<% thread = replies.map { |r| render(partial: 'gk_records/note', locals: { note: r, notes: notes, editable: editable }) } %>
+<%= gk_gui_stuff_entry(kind: gk_records_note_kind_tag(note.kind), who: gk_records_user(note.user, system: false, on: @target),
+                       at: format_time(note.created_at), number: "##{note.id}", number_href: "##{anchor}", head: head.presence, actions: actions,
+                       state: [note.voided? ? :voided : nil, corrected_by.any? ? :corrected : nil].compact, voided: voided,
+                       under: under, thread: thread, id: anchor) do %>
+  <%# A system text in the reader's language as it stood, and the text now when it has changed %>
+  <%= gk_records_light(note.shown_body) %><%= gk_records_text_now(note.body_now) %>
+<% end %>

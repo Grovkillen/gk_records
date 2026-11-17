@@ -103,6 +103,8 @@ module GkRecords
                  in_core: nil, core_link: nil, moved_from: nil, person: :switch, person_off: false, order: 100,
                  person_default: 'on', warning: nil, warning_sharp: nil, sharp_when: nil, reason_when_sharp: false,
                  footprint: nil, applies: nil)
+      return nil unless GkRecords.gui? # no setting without GK GUI Stuff (gate.rb)
+
       k = key.to_s
       raise ArgumentError, "appearance setting #{k}: the key is <plugin>.<name>" unless k.match?(KEY)
       raise ArgumentError, "appearance setting #{k} is a function in the register of functions" if Features.find(k)
@@ -353,6 +355,9 @@ module GkRecords
     # one event for the instance on the row START (a key no setting can have) with the choice, also when no level
     # changed; every event with the system's reason "installation". Returns the changed keys, nil when the instance
     # already has rows.
+    # While the gate to GK GUI Stuff is closed the choice waits: no setting is known then, so a choice kept then would
+    # count as made without one level set. Nothing is saved and no event is written (nil, and a line in the log); the
+    # choice is made when the gate is open.
     START = 'start'
     START_CHOICES = { 'as_redmine' => :redmine, 'gk_proposal' => :proposal }.freeze
     START_REASON = :text_gk_records_reason_installation
@@ -360,6 +365,11 @@ module GkRecords
     def start!(choice)
       c = choice.to_s
       raise ArgumentError, "appearance settings: unknown start choice #{c}" unless START_CHOICES.key?(c)
+
+      if (closed = GkRecords.gui_closed)
+        Rails.logger.warn("[gk_records] appearance start choice #{c} waits: GK GUI Stuff is #{closed}")
+        return nil
+      end
       return nil if ::GkRecordsAppearanceSetting.instance.exists?
 
       changed = []
@@ -540,20 +550,125 @@ module GkRecords
       Rails.logger.warn("[gk_records] appearance setting change not recorded for #{rec.key}: #{e.message}")
     end
 
-    # The target and the two kinds; the page that sets them is gui_stuff's, and without it the events have no page to
-    # lead to. A person's row is seen by the person and by administrators.
+    # An event on a setting's row in words, for the event log, its CSV and its search (register_event rows:): one row
+    # per level and per value that changed, labelled as the box of Spara on GK GUI Stuff's form page labels them, the
+    # setting's name for its level and "<setting> · <value>" for a value, before and after in the words the pages show
+    # (Av, Valfritt, Tvingat; a choice's own word; Ja or Nej). The setting's key is no row of its own: every row names
+    # the setting. A value nobody declares any more is named by its name, its values as text; nothing is ever shown as
+    # JSON. person: the words of a person's own choice (På, Av, Följer förvalet). Plain texts only.
+    def event_rows(details, person: false)
+      d = details.is_a?(Hash) ? details.transform_keys(&:to_s) : {}
+      key = d['appearance_setting'].to_s
+      row = find(key)
+      name = setting_name(key, row)
+      out = []
+      out << { label: ::I18n.t(:label_gk_records_appearance_start), to: start_word(Array(d['appearance_start']).last) } if d.key?('appearance_start')
+      m = d['mode']
+      out << { label: name, from: level_word(m[0], person), to: level_word(m[1], person) } if m.is_a?(Array) && m.size == 2
+      (d['values'].is_a?(Hash) ? d['values'] : {}).each { |n, change| out.concat(value_rows(row, name, n.to_s, change)) }
+      d.except('appearance_setting', 'appearance_start', 'mode', 'values').each do |f, c|
+        out << if defined?(Gate) && Gate.detail?(f, c) then { label: Gate.label, value: Gate.word(c) }
+               elsif c.is_a?(Array) && c.size == 2 then { label: f, from: plain_word(c[0]), to: plain_word(c[1]) }
+               else { label: f, value: plain_word(c) }
+               end
+      end
+      out
+    end
+
+    # The setting's name as the page shows it; Som Redmine för mig for a person's REDMINE; the key when nobody declares it
+    def setting_name(key, row = find(key))
+      return row.label.to_s if row
+      return ::I18n.t(:label_gk_records_appearance_redmine_for_me) if key == REDMINE
+
+      key.to_s
+    end
+
+    # A level in words: Av, Valfritt, Tvingat for the instance; På, Av or Följer förvalet (nil) for a person
+    def level_word(mode, person = false)
+      k = if person then { 'on' => :on, 'off' => :off, '' => :default }[mode.to_s]
+          elsif MODES.include?(mode.to_s) then mode.to_s
+          end
+      return mode.to_s.presence || ::I18n.t(:label_none) unless k
+
+      ::I18n.t(person ? :"label_gk_records_appearance_person_#{k}" : :"label_gk_records_appearance_level_#{k}")
+    end
+
+    # The start choice in words (Som Redmine, GK:s förslag)
+    def start_word(choice)
+      c = choice.to_s
+      START_CHOICES.key?(c) ? ::I18n.t(:"label_gk_records_appearance_start_#{c}") : (c.presence || ::I18n.t(:label_none))
+    end
+
+    # The rows of one value's change: a table one row per inner key that changed ("<setting> · <value> › <key>"), a
+    # list the entries taken out and those put in, any other its value before and after in words
+    def value_rows(row, name, n, change)
+      v = row&.value(n)
+      label = ::I18n.t(:text_gk_records_appearance_value_label, name: name, value: v ? v.label.to_s : n)
+      return [{ label: label, value: plain_word(change) }] unless change.is_a?(Array) && change.size == 2
+
+      before, after = change
+      if before.is_a?(Hash) || after.is_a?(Hash) || v&.kind == 'table'
+        b = before.is_a?(Hash) ? before.transform_keys(&:to_s) : {}
+        a = after.is_a?(Hash) ? after.transform_keys(&:to_s) : {}
+        keys = (b.keys | a.keys).reject { |k| b[k] == a[k] }
+        return keys.map { |k| { label: "#{label} › #{k}", from: plain_word(b[k]), to: plain_word(a[k]) } } if keys.any?
+      elsif before.is_a?(Array) || after.is_a?(Array)
+        b = Array(before).map(&:to_s)
+        a = Array(after).map(&:to_s)
+        gone = b - a
+        come = a - b
+        return [{ label: label, from: gone.join(', ').presence, to: come.join(', ').presence }] if gone.any? || come.any?
+      end
+      [{ label: label, from: value_word(v, before), to: value_word(v, after) }]
+    end
+
+    # A value in the words the page shows it in: a select's or a choice's own word, Ja or Nej for a flag, a number or a
+    # text as it is, nothing as core's "(ingen)"
+    def value_word(v, x)
+      return ::I18n.t(:label_none) if x.nil? || x.to_s.strip.empty? || (x.respond_to?(:empty?) && x.empty?)
+      return plain_word(x) unless v
+
+      case v.kind
+      when 'flag' then ::I18n.t([true, 1, '1', 'true', 'on'].include?(x) ? :general_text_Yes : :general_text_No)
+      when 'select', 'choice'
+        c = v.choice_list.detect { |e| (e.is_a?(Array) ? e.last : e).to_s == x.to_s }
+        c ? (c.is_a?(Array) ? c.first : c).to_s : x.to_s
+      else plain_word(x)
+      end
+    end
+
+    # Any value as text, never JSON: a list joined with commas, a hash as "key: value", nothing as core's "(ingen)"
+    def plain_word(x)
+      case x
+      when nil then ::I18n.t(:label_none)
+      when Hash then x.map { |k, y| "#{k}: #{plain_word(y)}" }.join(', ')
+      when Array then x.empty? ? ::I18n.t(:label_none) : x.map { |y| plain_word(y) }.join(', ')
+      else x.to_s.strip.empty? ? ::I18n.t(:label_none) : x.to_s
+      end
+    end
+
+    # The target and the two kinds; the page that sets them is GK GUI Stuff's (Utseende, Mitt konto), where the events
+    # lead. A person's row is seen by the person and by administrators.
+    # Registered whatever the gate says (init.rb): the settings themselves stay behind the gate (register), but a change
+    # made while it is closed (a task, a scenario step) is an event all the same; the start choice alone waits for the
+    # gate (start!). The target has no address then, since the pages are GK GUI Stuff's.
     def register_records!
       Targets.register(TARGET, model: 'GkRecordsAppearanceSetting',
                                visible: ->(s, user) { user.admin? || (user.logged? && s.user_id == user.id) },
                                editable: ->(_s, user) { user.admin? },
                                label: ->(s) { "#{::I18n.t(:label_gk_records_appearance_setting)}: #{s.name}" },
                                url: lambda { |s|
+                                 next nil unless GkRecords.gui?
+
                                  helpers = Rails.application.routes.url_helpers
                                  path = s.person? ? :gk_gui_stuff_my_path : :gk_gui_stuff_appearance_path
                                  helpers.respond_to?(path) ? helpers.public_send(path) : nil
                                })
-      Kinds.register_event(KIND, plugin: :gk_records, label_key: 'label_gk_records_event_appearance_setting_changed', target: TARGET)
-      Kinds.register_event(PERSON_KIND, plugin: :gk_records, label_key: 'label_gk_records_event_appearance_setting_chosen', target: TARGET)
+      # the changes in words (event_rows), the same rows as the box of Spara on the form page
+      Kinds.register_event(KIND, plugin: :gk_records, label_key: 'label_gk_records_event_appearance_setting_changed', target: TARGET,
+                                 rows: ->(d, _viewer) { event_rows(d) })
+      Kinds.register_event(PERSON_KIND, plugin: :gk_records, label_key: 'label_gk_records_event_appearance_setting_chosen', target: TARGET,
+                                        rows: ->(d, _viewer) { event_rows(d, person: true) })
     rescue StandardError => e
       Rails.logger.warn("[gk_records] appearance register not ready: #{e.message}")
     end

@@ -16,6 +16,8 @@ scope 'gk_records' do
   get  'kinds', to: 'gk_records_kinds#index', as: 'gk_records_kinds'
   # Administration > Skäl
   get   'reasons', to: 'gk_records_reasons#index', as: 'gk_records_reasons'
+  # the page's one form: the installation's mode and every place's in one save with one reason
+  patch 'reasons', to: 'gk_records_reasons#update_all'
   patch 'reasons/:key', to: 'gk_records_reasons#update', as: 'gk_records_reason', constraints: { key: %r{[^/]+} }, format: false
   # Administration > Inläsningar, and a reading's page
   get 'readings', to: 'gk_records_readings#index', as: 'gk_records_readings'

@@ -19,6 +19,7 @@ module GkRecords
 
     def generate(events, viewer = User.current)
       events = events.to_a
+      Verification.preload_places(events) if defined?(Verification) && Verification.respond_to?(:preload_places)
       projects = ::Project.where(id: events.map(&:project_id).compact.uniq).pluck(:id, :identifier).to_h
       zone = viewer.time_zone || ::Time.zone
       body = ::CSV.generate(col_sep: ::I18n.t(:general_csv_separator, default: ','), row_sep: "\r\n") do |csv|
@@ -33,7 +34,7 @@ module GkRecords
       thing = target_of(event, viewer)
       # the offset always written out (+00:00, never Z), so a reader sees the zone the time is in
       [event.created_at.in_time_zone(zone).strftime('%Y-%m-%dT%H:%M:%S%:z'), event.kind, event.kind_label, event.target_type, event.target_id,
-       thing ? Targets.label(thing) : '', projects[event.project_id].to_s, person(event, j), changes(j[:details]),
+       thing ? Targets.label(thing) : '', projects[event.project_id].to_s, person(event, j), changes(j[:details], event, viewer),
        j[:reason].to_s]
     end
 
@@ -50,12 +51,23 @@ module GkRecords
       event.user&.login.to_s
     end
 
-    # One line per field: "field: before -> after", or "field: value"
-    def changes(details)
+    # One line per field: "field: before -> after", or "field: value"; a change of the verification status in the
+    # words of its place ("Verifieringsstatus: Hypotes -> Delvis verifierad"), and the field that says the event was
+    # written while the gate to GK GUI Stuff was closed in its words ("GK GUI Stuff: missing", Gate.line)
+    # A kind registered with rows: (Kinds.event_rows) is said in its owner's words, "label: from -> to", from the details
+    # the viewer may see
+    def changes(details, event = nil, viewer = nil)
       return '' unless details.is_a?(Hash)
 
+      own = event.respond_to?(:change_details) && Kinds.respond_to?(:event_rows) ? Kinds.event_rows(event.kind, event.change_details(viewer || User.current), viewer) : nil
+      return own.map { |r| Kinds.row_text(r, '->') }.join("\n") if own
+
       details.map do |field, change|
-        if change.is_a?(Array) && change.size == 2
+        if event.respond_to?(:verification_status?) && event.verification_status?(field, change)
+          Verification.change_line(event, change[0], change[1], '->')
+        elsif Gate.detail?(field, change)
+          Gate.line(change)
+        elsif change.is_a?(Array) && change.size == 2
           "#{field}: #{value(change[0])} -> #{value(change[1])}"
         else
           "#{field}: #{value(change)}"

@@ -3,6 +3,7 @@
 #   GET /gk_records/readings[.json]      the list (administrators)
 #   GET /gk_records/readings/:id[.json]  one reading
 class GkRecordsReadingsController < ApplicationController
+  include GkRecords::Gate::Controller # core's 404 without GK GUI Stuff (gate.rb)
   self.main_menu = false
   before_action :require_login
   # the list is for administrators, as core's require_admin; an OAuth token also needs the read scope

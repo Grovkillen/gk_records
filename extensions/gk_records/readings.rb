@@ -29,7 +29,7 @@ module GkRecords
 
     module_function
 
-    def ready? = ::GkRecordsReading.table_exists? && ::GkRecordsFieldOrigin.table_exists?
+    def ready? = GkRecords.gui? && ::GkRecordsReading.table_exists? && ::GkRecordsFieldOrigin.table_exists?
 
     # ------------------------------------------------------------------ manifest.json
 

@@ -19,7 +19,8 @@ module GkRecords
   # a key nobody declared is off. The default stands in the registration and in the plugin's
   # registrations.yml, and the first switch away from it is an event like any other. A function that is off draws
   # nothing; its data stays. Every switch is an event on the function, with the reason. A plugin without records has
-  # every function off.
+  # every function off. The register does not ask the gate to GK GUI Stuff (gate.rb): with the gate closed it answers
+  # as with the gate open.
   module Features
     ALL = %w[links assessments events readings verification].freeze
     SWITCHED = %w[links assessments events readings].freeze
@@ -32,7 +33,7 @@ module GkRecords
                      gk_project_types gk_publishing gk_queries gk_retention gk_revisions gk_signoff gk_tags gk_templates
                      gk_triggers gk_workflow_rules],
       'readings' => %w[gk_gis gk_people gk_project_types],
-      'verification' => %w[gk_signoff gk_project_types]
+      'verification' => %w[gk_people gk_signoff gk_project_types]
     }.freeze
     # A plugin's name when it is not installed (what its init.rb calls it)
     NAMES = {
@@ -49,6 +50,7 @@ module GkRecords
     def requests = (@requests ||= Hash.new { |h, k| h[k] = [] })
 
     # A plugin asks for a function when it starts; registered again after a reload
+    # (never asks the gate, gate.rb: the register answers also without GK GUI Stuff)
     def request(key, by:)
       k = key.to_s
       raise ArgumentError, "records has no function #{k}" unless ALL.include?(k)
@@ -108,6 +110,9 @@ module GkRecords
     # the function puts on the pages (adds:, removes:, anchors:, elements:, pages:) and applies: how (footprint.rb); a
     # new function with a visible effect declares them, and an anchor that breaks footprint.rb's rules is left out and
     # logged.
+    # The register never asks the gate (gate.rb): a function is declared, and on? answers by the stored value, also
+    # without GK GUI Stuff, for every plugin, since protections hang on functions. The page that switches them is closed
+    # then, and whatever draws for a function has its own gate.
     def register(key, plugin:, label: nil, help: nil, admin_only: false, default: false, related: [], requires: [],
                  footprint: nil, applies: nil)
       k = key.to_s
@@ -224,12 +229,14 @@ module GkRecords
       Rails.logger.warn("[gk_records] function switch not recorded for #{row.key}: #{e.message}")
     end
 
-    # The page that switches them is gui_stuff's; without it the function's events have no page to lead to
+    # The page that switches them is GK GUI Stuff's (Administration, Funktioner), where the function's events lead.
+    # The target is registered whatever the gate says (init.rb), so its address asks the gate: without GK GUI Stuff
+    # the page and its route are not there, and the target has no address (Targets.url takes nil)
     def register_records!
       Targets.register(TARGET, model: 'GkRecordsFeature',
                                visible: ->(_f, user) { user.admin? }, editable: ->(_f, user) { user.admin? },
                                label: ->(f) { "#{::I18n.t(:label_gk_records_features)}: #{f.name}" },
-                               url: ->(_f) { defined?(::GkGuiStuff) ? Rails.application.routes.url_helpers.gk_gui_stuff_features_path : nil })
+                               url: ->(_f) { GkRecords.gui? ? Rails.application.routes.url_helpers.gk_gui_stuff_features_path : nil })
       Kinds.register_event(KIND, plugin: :gk_records, label_key: 'label_gk_records_event_feature_switched', target: TARGET)
       register('records.more_note_kinds', plugin: :gk_records, label: :label_gk_feature_records_more_note_kinds,
                                           help: :text_gk_feature_records_more_note_kinds)

@@ -59,6 +59,7 @@ module GkRecords
   # Nothing at the top of the issue. With the setting tab_counts the tabs Kopplingar and Bedömningar say their
   # number, "Kopplingar (3)": core writes a tab's label from a key, so the number is put after it on the page.
   class IssueHooks < Redmine::Hook::ViewListener
+    include GkRecords::Gate::Listener # silent without GK GUI Stuff (gate.rb)
     def view_issues_show_description_bottom(context = {})
       issue = context[:issue]
       return '' unless issue && Targets.find('issue') && Targets.visible?(issue)
@@ -96,18 +97,9 @@ module GkRecords
 
       counts = { IssueLinks::TAB => ::GkRecordsLink.active.touching('issue', issue.id).count,
                  IssueLinks::ASSESS_TAB => ::GkRecordsAssessment.for_target('issue', issue.id).count }
-      javascript_tag(<<~JS)
-        (function () {
-          var counts = #{counts.to_json};
-          var put = function () {
-            Object.keys(counts).forEach(function (name) {
-              var a = document.getElementById('tab-' + name);
-              if (a && !a.getAttribute('data-gk-count')) { a.setAttribute('data-gk-count', '1'); a.textContent = a.textContent + ' (' + counts[name] + ')'; }
-            });
-          };
-          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', put); else put();
-        })();
-      JS
+      # the numbers as data; gk_records_tab_counts.js puts each after its tab's word as GK GUI Stuff's count
+      safe_join([content_tag('script', counts.to_json.html_safe, type: 'application/json', id: 'gk-records-tab-counts'),
+                 javascript_include_tag('gk_records_tab_counts', plugin: 'gk_records')])
     end
 
     # The row Verifieringsstatus among the issue's details, on the trackers the administrator chose

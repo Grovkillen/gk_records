@@ -1,0 +1,7 @@
+/* gk_records: the place of the reason drawn by records' shell (gk_records_reason_field) and on the settings pages, GK
+   GUI Stuff's reason block inside records' mark. Its look is GK GUI Stuff's; here only where it stands: on a line of
+   its own under the form's Save (the script moves it there), no wider than a reason needs. Logical properties only. */
+.gk-records-reason-wrap { display: block; max-inline-size: 40em; margin-block: 0.4em 0; text-align: start; white-space: normal; }
+.gk-records-reason-under { margin-block: 0.4em 0; }
+/* the settings pages: under core's Save, on its own row */
+.gk-records-setting-reason { margin-block-start: 0.6em; }

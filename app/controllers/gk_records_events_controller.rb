@@ -51,7 +51,9 @@ class GkRecordsEventsController < GkRecordsBaseController
     end
     respond_to do |format|
       format.html do
-        @events = rows.call((params[:limit] || 200).to_i.clamp(1, 1000))
+        @events = rows.call((params[:limit] || 200).to_i.clamp(1, 1000)).to_a
+        # the issues' verification places in one query, for the changes in the words of each place
+        GkRecords::Verification.preload_places(@events) if defined?(GkRecords::Verification)
         render layout: (User.current.admin? && @project.nil? ? 'admin' : 'base')
       end
       # 1.01.000: as core's issue export, at most Setting.issues_export_limit rows

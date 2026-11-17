@@ -111,9 +111,11 @@ module GkRecords
 
       MANIFEST_PARAM = 'with_manifest'
 
-      # The request asks for a manifest on a named export (core's list or a plugin's name from revisions)
+      # The request asks for a manifest on a named export (core's list or a plugin's name from revisions). Never while
+      # the gate to GK GUI Stuff is closed (gate.rb): the zip is a choice of the interface and of the API; the export
+      # is logged all the same.
       def manifest_wanted?(c)
-        c.params[MANIFEST_PARAM].to_s == '1' && on? && kind_for(c) == 'exported'
+        GkRecords.gui? && c.params[MANIFEST_PARAM].to_s == '1' && on? && kind_for(c) == 'exported'
       rescue StandardError
         false
       end
@@ -333,7 +335,10 @@ module GkRecords
   end
 
   # With the export log on, the script that tells the server when the page is printed and the choice "med manifest"
-  # where exports are offered (only for one logged in)
+  # where exports are offered (only for one logged in).
+  # The listener does not include Gate::Listener (gate.rb): the print script is trace and stands on the pages also
+  # while the gate to GK GUI Stuff is closed, with the address that receives it (GkRecordsPrintsController). The script
+  # and the meta element use nothing of GK GUI Stuff. The choice "med manifest" asks the gate here.
   class ExportLogHooks < Redmine::Hook::ViewListener
     def view_layouts_base_html_head(context = {})
       return '' unless ExportLog.on? && User.current.logged?
@@ -341,7 +346,7 @@ module GkRecords
       url = "#{Redmine::Utils.relative_url_root}/gk_records/printed"
       out = content_tag(:meta, nil, id: 'gk-records-export-print', name: 'gk-records-export-print', 'data-url': url)
       out += javascript_include_tag('gk_records_export_print', plugin: 'gk_records', defer: true)
-      return out unless AppearanceSettings.on_for?(ExportLog::MANIFEST_ROW)
+      return out unless GkRecords.gui? && AppearanceSettings.on_for?(ExportLog::MANIFEST_ROW)
 
       # "med manifest" in core's CSV dialog and beside the other formats
       out += content_tag(:meta, nil, id: 'gk-records-export-manifest', name: 'gk-records-export-manifest', 'data-label': l(:label_gk_records_with_manifest),

@@ -70,6 +70,8 @@ module GkRecords
         objects = t.model_class.where(id: list.map(&:target_id).uniq).index_by(&:id)
         list.each { |e| e.target_known(objects[e.target_id]) }
       end
+      # the issues' verification places, for the changes in the words of each place
+      Verification.preload_places(events) if defined?(Verification) && Verification.respond_to?(:preload_places)
     end
   end
 end

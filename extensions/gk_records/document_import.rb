@@ -467,6 +467,7 @@ module GkRecords
   # gk_core_stuff's more_view_hooks). Nothing on core's page is looked for or moved: where a page does not call a hook,
   # its part stands at the end of the content (view_layouts_base_content, which core draws after the page).
   class DocumentImportHooks < Redmine::Hook::ViewListener
+    include GkRecords::Gate::Listener # silent without GK GUI Stuff (gate.rb)
     def view_documents_show_details_bottom(context = {})
       doc = context[:document]
       return '' unless doc

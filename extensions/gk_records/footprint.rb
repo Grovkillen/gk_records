@@ -47,17 +47,17 @@ module GkRecords
     CORE_CLASSES = %w[attachments attributes autoscroll badge box breadcrumbs checkbox contextual copy-pre-content-link
                       current-project description details disabled dropdown dropdown-content error flash folder
                       gantt_selected_column gantt_subjects_column help icon info issue issues journal journal-info list
-                      members more-attributes nodata notice overdue pagination pre-wrapper private-notes short_description
+                      members more-attributes nodata notice overdue pagination pre-wrapper private-notes revision-graph short_description
                       splitcontent subject submenu tabs tabular warning wiki].freeze
     # GK Core Stuff's class marks on core's views (core candidates): anchor_marks' (site-title, issue-heading,
-    # subject-heading, current-status, field-name and the version control table's scm_ columns) and section_marks'
-    # section-heading
-    CORE_STUFF_CLASSES = %w[current-status field-name issue-heading scm_command scm_name scm_path scm_version section-heading
-                            site-title subject-heading].freeze
+    # subject-heading, current-status, field-name and the version control table's scm_ columns), section_marks'
+    # section-heading and the class for dark mode (dark-mode)
+    CORE_STUFF_CLASSES = %w[current-status dark-mode field-name issue-heading scm_command scm_name scm_path scm_version
+                            section-heading site-title subject-heading].freeze
     # Families of core's purposeful classes, one per thing: an icon's name (icon-time-add) and a custom field's id (cf_ and the id)
     CORE_CLASS_PREFIXES = %w[icon- cf_].freeze
     # Core's data attributes, and GK Core Stuff's marks on core's views (written as core candidates)
-    CORE_ATTRIBUTES = %w[data-attachment-id data-field data-form-action data-menu data-menu-item data-principal-id data-project
+    CORE_ATTRIBUTES = %w[data-attachment-id data-dark-mode data-field data-form-action data-menu data-menu-item data-principal-id data-project
                          data-query-action data-query-part data-report-column data-section data-section-action data-status-closed
                          data-status-id].freeze
     # The attribute operators an anchor may use: presence, an exact value and one word of a list

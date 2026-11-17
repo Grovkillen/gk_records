@@ -5,7 +5,7 @@
 <div class="box">
   <table class="attributes gk-records-reading">
     <tr><th><%= l(:field_gk_records_reading_source) %></th><td><%= r.source_label %>
-      <% if r.source_url.present? %><br><span class="gk-records-meta"><%= r.source_url %></span><% end %>
+      <% if r.source_url.present? %><br><%= gk_gui_stuff_quiet(r.source_url, soft: true) %><% end %>
       <%# The source register's issue it points to (a citation link, made on the page Kopplingar), beside the text as it
           came %>
       <% if (cited = gk_records_citations(r)).present? %><br><%= cited %><% end %></td></tr>
@@ -30,18 +30,19 @@
 <h3><%= l(:label_gk_records_reading_files) %></h3>
 <%# the facts about the files read; the files themselves are never kept %>
 <% if (files = r.files).any? %>
-<table class="list gk-records-reading-files">
-  <thead><tr><th><%= l(:field_filename) %></th><th><%= l(:field_gk_records_reading_files_size) %></th><th>SHA-256</th></tr></thead>
-  <tbody>
+<%# a size is never broken over lines: the column's nowrap: %>
+<% columns = [{ key: :file, label: l(:field_filename), slot: :grow, html: { class: 'text' } },
+              { key: :size, label: l(:field_gk_records_reading_files_size), nowrap: true, html: { class: 'size' } },
+              { key: :digest, label: 'SHA-256', html: { class: 'digest' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-reading-files' }) do %>
   <% files.each do |f| %>
-    <tr class="<%= cycle('odd', 'even') %>">
-      <td class="text"><%= f['file'] %></td>
-      <td class="size"><%= f['size'] ? number_to_human_size(f['size']) : '-' %></td>
-      <td class="digest"><code class="gk-records-sha"><%= f['sha256'] %></code></td>
-    </tr>
+    <%= gk_gui_stuff_table_row(html: { class: cycle('odd', 'even') }) do %>
+      <%= gk_gui_stuff_table_cell(:file, f['file']) %>
+      <%= gk_gui_stuff_table_cell(:size, f['size'] ? number_to_human_size(f['size']) : '-') %>
+      <%= gk_gui_stuff_table_cell(:digest, content_tag(:code, f['sha256'])) %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 <% else %>
   <p class="nodata"><%= l(r.made_afterwards ? :text_gk_records_reading_no_file_afterwards : :text_gk_records_reading_no_file) %></p>
 <% end %>
@@ -56,61 +57,63 @@
            Array(m['other_files']).filter_map { |n| { 'file' => n.to_s } if n.present? }
    reset_cycle %>
 <h3><%= l(:label_gk_records_reading_zip_files) %></h3>
-<table class="list gk-records-reading-files gk-records-reading-zip-files">
-  <thead><tr><th><%= l(:field_filename) %></th><th><%= l(:field_gk_records_reading_files_size) %></th><th>SHA-256</th></tr></thead>
-  <tbody>
+<% columns = [{ key: :file, label: l(:field_filename), slot: :grow, html: { class: 'text' } },
+              { key: :size, label: l(:field_gk_records_reading_files_size), nowrap: true, html: { class: 'size' } },
+              { key: :digest, label: 'SHA-256', html: { class: 'digest' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-reading-files gk-records-reading-zip-files' }) do %>
   <% inner.each do |f| %>
-    <tr class="<%= cycle('odd', 'even') %>">
-      <td class="text"><%= f['file'] %></td>
-      <td class="size"><%= f['size'] ? number_to_human_size(f['size']) : '-' %></td>
-      <td class="digest"><% if f['sha256'].present? %><code class="gk-records-sha"><%= f['sha256'] %></code><% else %>-<% end %></td>
-    </tr>
+    <%= gk_gui_stuff_table_row(html: { class: cycle('odd', 'even') }) do %>
+      <%= gk_gui_stuff_table_cell(:file, f['file']) %>
+      <%= gk_gui_stuff_table_cell(:size, f['size'] ? number_to_human_size(f['size']) : '-') %>
+      <%= gk_gui_stuff_table_cell(:digest, f['sha256'].present? ? content_tag(:code, f['sha256']) : '-') %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 <% end %>
 
 <% if m %>
   <h3><%= l(:label_gk_records_reading_manifest) %></h3>
-  <pre class="gk-records-manifest"><%= JSON.pretty_generate(m) %></pre>
+  <%= gk_gui_stuff_pre(JSON.pretty_generate(m), label: l(:label_gk_records_reading_manifest)) %>
 <% end %>
 
-<h3><%= l(:label_gk_records_reading_objects) %> (<%= @origins.map { |o| [o.target_type, o.target_id] }.uniq.size %>)</h3>
+<h3><%= l(:label_gk_records_reading_objects) %> <%= gk_gui_stuff_count(@origins.map { |o| [o.target_type, o.target_id] }.uniq.size) %></h3>
 <% if @origins.empty? %>
   <p class="nodata"><%= l(:label_no_data) %></p>
 <% else %>
-<table class="list gk-records-reading-objects">
-  <thead><tr><th><%= l(:label_gk_records_target) %></th><th><%= l(:field_gk_records_reading_fields) %></th><th><%= l(:field_gk_records_reading_source_id) %></th>
-    <th><%= l(:field_gk_records_reading_source) %></th></tr></thead>
-  <tbody>
+<% columns = [{ key: :target, label: l(:label_gk_records_target), slot: :grow, html: { class: 'target' } },
+              { key: :fields, label: l(:field_gk_records_reading_fields), html: { class: 'text' } },
+              { key: :source_id, label: l(:field_gk_records_reading_source_id), html: { class: 'source_id' } },
+              { key: :source, label: l(:field_gk_records_reading_source), html: { class: 'text' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-reading-objects' }) do %>
   <% @origins.group_by { |o| [o.target_type, o.target_id] }.each do |(key, id), rows| %>
-    <tr class="<%= cycle('odd', 'even') %>">
-      <td class="target"><%= gk_records_ref_link(key, id) %></td>
-      <td class="text"><%= rows.map(&:field).join(', ') %></td>
-      <td class="source_id"><%= rows.map(&:source_id).compact.uniq.join(', ') %></td>
-      <td class="text"><%= rows.map(&:source).compact.uniq.join(', ') %></td>
-    </tr>
+    <%= gk_gui_stuff_table_row(html: { class: cycle('odd', 'even') }) do %>
+      <%= gk_gui_stuff_table_cell(:target, gk_records_ref_link(key, id)) %>
+      <%= gk_gui_stuff_table_cell(:fields, rows.map(&:field).join(', ')) %>
+      <%= gk_gui_stuff_table_cell(:source_id, rows.map(&:source_id).compact.uniq.join(', ')) %>
+      <%= gk_gui_stuff_table_cell(:source, rows.map(&:source).compact.uniq.join(', ')) %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 <% end %>
 
-<h3><%= l(:label_gk_records_reading_changes) %> (<%= @events.size %>)</h3>
+<h3><%= l(:label_gk_records_reading_changes) %> <%= gk_gui_stuff_count(@events.size) %></h3>
 <% if @events.any? %>
-<table class="list gk-records-events-table">
-  <thead><tr><th><%= l(:field_created_on) %></th><th><%= l(:label_gk_records_kind) %></th><th><%= l(:label_gk_records_target) %></th>
-    <th><%= l(:label_gk_records_changes) %></th></tr></thead>
-  <tbody>
+<%# The stacked row keeps the wide row's order, when, kind, thing and the changes last: the kind shares the first
+    place with the time and stands after it. Its pills are never parted over two lines: the column's nowrap: %>
+<% columns = [{ key: :at, label: l(:field_created_on), slot: :first, html: { class: 'created_on' } },
+              { key: :kind, label: l(:label_gk_records_kind), slot: :first, nowrap: true, html: { class: 'kind' } },
+              { key: :target, label: l(:label_gk_records_target), slot: :grow, html: { class: 'target' } },
+              { key: :changes, label: l(:label_gk_records_changes), slot: :full, html: { class: 'text' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-events-table' }) do %>
   <% @events.each do |e| %>
-    <tr>
-      <td class="created_on gk-records-when"><%= format_time(e.created_at) %></td>
-      <td class="kind"><%= gk_records_event_kind_tag(e.kind) %><%= gk_records_origin_badge(e.origin) %></td>
-      <td class="target"><%= gk_records_ref_link(e.target_type, e.target_id) %></td>
-      <td class="text"><% if (d = gk_records_details(e)).present? %><ul class="gk-records-diff"><%= d %></ul><% end %></td>
-    </tr>
+    <%= gk_gui_stuff_table_row do %>
+      <%= gk_gui_stuff_table_cell(:at, gk_gui_stuff_quiet(format_time(e.created_at), nowrap: true)) %>
+      <%= gk_gui_stuff_table_cell(:kind, safe_join([gk_records_event_kind_tag(e.kind), gk_records_origin_badge(e.origin)])) %>
+      <%= gk_gui_stuff_table_cell(:target, gk_records_ref_link(e.target_type, e.target_id)) %>
+      <%= gk_gui_stuff_table_cell(:changes, gk_records_details(e).presence) %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 <% else %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
 
 <%= gk_records_list(r) %>

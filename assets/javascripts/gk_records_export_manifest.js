@@ -59,7 +59,6 @@
     m.setAttribute('aria-label', label + ': ' + title);
     m.dataset.gkRecordsManifest = '1';
     var span = document.createElement('span');
-    span.className = 'gk-records-manifest';
     span.appendChild(document.createTextNode(' '));
     span.appendChild(m);
     a.insertAdjacentElement('afterend', span);

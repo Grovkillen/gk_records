@@ -1,10 +1,32 @@
-<%# gk_records: its settings, then Om pluginet and the change log %>
+<%# gk_records: first why the gate is closed, as core's own warning line (GK GUI Stuff is the one it is about, so
+    nothing of it can draw the line): GK GUI Stuff is missing, it is too old (with the version required), or it is
+    installed in the right version but not active (with the way to its own settings page); then Om pluginet; with GK GUI Stuff the settings and the change log. Without it nothing else
+    is drawn, and the stored settings go back as hidden fields, because core's Save on this page writes what is posted
+    over what is stored. They come back as a form posts them, not byte for byte: an empty hash posts nothing (the key
+    goes), an empty list comes back as [""], every other value as text; every read of these settings takes those forms
+    as the stored ones (a missing hash as {}, [""] as no tracker) %>
 <% plugin = Redmine::Plugin.find(:gk_records) %>
-<% changelog = ["CHANGELOG.#{current_language}.md", 'CHANGELOG.md'].map { |f| File.join(plugin.directory, f) }.find { |f| File.exist?(f) } %>
+<% gui_closed = GkRecords.gui_closed %>
+<% gui = gui_closed.nil? %>
+<% if gui_closed == :missing %><p class="warning"><%= l(:text_gk_records_gui_stuff_missing) %></p>
+<% elsif gui_closed == :old %><p class="warning"><%= l(:text_gk_records_gui_stuff_required, version: GkRecords::GUI_STUFF_MIN) %></p>
+<% elsif gui_closed == :inactive %><p class="warning"><%= l(:text_gk_records_gui_stuff_inactive) %> <%= link_to l(:label_gk_records_gui_stuff_settings), plugin_settings_path('gk_gui_stuff') %></p><% end %>
+<% unless defined?(::GkCoreStuff) %><p class="warning"><%= l(:text_gk_records_core_stuff_missing) %></p><% end %>
 <fieldset class="box"><legend><%= l(:label_gk_records_about) %></legend>
   <div><strong><%= plugin.name %></strong> <%= plugin.version %></div>
   <div><%= l(:text_gk_records_description) %></div>
 </fieldset>
+<% unless gui %>
+  <% keep = nil %>
+  <% keep = lambda do |name, value|
+       case value
+       when Hash then value.flat_map { |k, v| keep.call("#{name}[#{k}]", v) }
+       when Array then value.empty? ? [hidden_field_tag("#{name}[]", '', id: nil)] : value.map { |v| hidden_field_tag("#{name}[]", v.to_s, id: nil) }
+       else [hidden_field_tag(name, value.to_s, id: nil)]
+       end
+     end %>
+  <%= safe_join((settings.is_a?(Hash) ? settings : {}).flat_map { |k, v| keep.call("settings[#{k}]", v) }) %>
+<% else %>
 <fieldset class="box tabular"><legend><%= l(:label_gk_records_settings_display) %></legend>
 <p><label for="settings_note_max_length"><%= l(:field_gk_records_note_max_length) %></label>
   <%= number_field_tag 'settings[note_max_length]', GkRecordsNote.max_length, id: 'settings_note_max_length', min: 100, max: 20000 %></p>
@@ -39,8 +61,8 @@
       <% if by.any? %><br><%= l(:text_gk_records_feature_on_by, plugins: by.map { |p| f.name_of(p) }.join(', ')) %>
       <% elsif (gone = f.missing_users(k)).any? %><br><%= l(:text_gk_records_feature_unused, plugins: gone.map { |p| f.name_of(p) }.join(', ')) %><% end %></em></p>
 <% end %>
-<%# Verification status: on when a tracker has it, chosen on the tracker's own page; its name from
-    the locales (renaming belongs to a fields plugin later) %>
+<%# Verification status: on when a tracker has it, chosen on the tracker's own page, where each tracker also ticks its
+    optional levels; the words and the row's name per language under fields' Översättningar %>
 <% v = GkRecords::Verification %>
 <p><label><%= l(:label_gk_records_feature_verification) %></label>
   <%# the trackers' names stand out from the sentence %>
@@ -49,6 +71,14 @@
   <em class="info"><%= l(v.reviewer ? :text_gk_records_feature_verification_review : :text_gk_records_feature_verification) %></em></p>
 <%= hidden_field_tag 'settings[verification_tracker_ids][]', '', id: nil %>
 <% v.tracker_ids.each do |id| %><%= hidden_field_tag 'settings[verification_tracker_ids][]', id, id: nil %><% end %>
+<%# The levels of records' own places, saved with this form: the issue default (the trackers that have no choice of
+    their own follow it) and the assessments. The places' stored choices are not carried by this form: the settings
+    patch puts in what is stored when the form is saved, then writes the levels posted here %>
+<p><label><%= l(:label_gk_records_verification_place_issue) %></label>
+  <em class="info"><%= l(:text_gk_records_vlevels_issue_default) %></em></p>
+<%= render partial: 'gk_records/verification_levels', locals: { place: 'issue' } %>
+<p><label><%= l(:label_gk_records_vlevels_assessments) %></label></p>
+<%= render partial: 'gk_records/verification_levels', locals: { place: 'gk_records_assessment' } %>
 </fieldset>
 <%# The assessment kinds that are data (GkRecords::AssessmentKinds), carried unchanged by this form; their box only when
     there are some %>
@@ -78,39 +108,29 @@
 <fieldset class="box"><legend><%= l(:label_gk_records_registered) %></legend>
 <p class="info"><%= l(:text_gk_records_registered) %></p>
 <div class="autoscroll">
-<table class="list gk-records-targets">
-  <thead><tr>
-    <th><%= l(:field_gk_records_target_thing) %></th>
-    <th><%= l(:field_gk_records_target_key) %></th>
-    <th><%= l(:field_gk_records_target_plugin) %></th>
-    <th><%= l(:field_gk_records_target_events) %></th>
-    <th><%= l(:field_gk_records_target_links) %></th>
-  </tr></thead>
-  <tbody>
+<% columns = [{ key: :thing, label: l(:field_gk_records_target_thing), slot: :grow, html: { class: 'name' } },
+              { key: :key, label: l(:field_gk_records_target_key), html: { class: 'key' } },
+              { key: :plugin, label: l(:field_gk_records_target_plugin), html: { class: 'plugin' } },
+              { key: :events, label: l(:field_gk_records_target_events), html: { class: 'events' } },
+              { key: :links, label: l(:field_gk_records_target_links), html: { class: 'links' } }] %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-targets' }) do %>
   <% GkRecords::Targets.all.values.sort_by { |t| GkRecords::Targets.thing_label(t.key).to_s.downcase }.each do |t| %>
     <% events = kinds.select { |k| k.scope.to_s == 'event' && k.target.to_s == t.key }.map(&:label).sort %>
     <% links = (link_kinds - everywhere).select { |k| k.offered_on?(t.key) || k.allows?(t.key) }.map(&:label).sort %>
     <% owner = GkRecords::Targets.owner(t.key) %>
-    <tr>
-      <td class="name"><%= GkRecords::Targets.thing_label(t.key) %></td>
-      <td class="key"><code><%= t.key %></code></td>
-      <td class="plugin"><%= owner ? owner.name : '-' %></td>
-      <td class="events"><%= events.any? ? content_tag('span', events.size, title: events.join(', ')) : '-' %></td>
-      <td class="links"><%= links.any? ? content_tag('span', links.size, title: links.join(', ')) : '-' %></td>
-    </tr>
+    <%= gk_gui_stuff_table_row do %>
+      <%= gk_gui_stuff_table_cell(:thing, GkRecords::Targets.thing_label(t.key)) %>
+      <%= gk_gui_stuff_table_cell(:key, content_tag(:code, t.key)) %>
+      <%= gk_gui_stuff_table_cell(:plugin, owner ? owner.name : '-') %>
+      <%= gk_gui_stuff_table_cell(:events, events.any? ? content_tag('span', events.size, title: events.join(', ')) : '-') %>
+      <%= gk_gui_stuff_table_cell(:links, links.any? ? content_tag('span', links.size, title: links.join(', ')) : '-') %>
+    <% end %>
   <% end %>
-  </tbody>
-</table>
+<% end %>
 </div>
 <% if everywhere.any? %>
 <p class="info"><%= l(:text_gk_records_registered_links_everywhere, kinds: everywhere.map(&:label).sort.join(', ')) %></p>
 <% end %>
 </fieldset>
-<% if changelog %>
-<fieldset class="box"><legend><%= l(:label_gk_records_changelog) %></legend>
-  <% unless current_language.to_s.start_with?('en') %><div class="gk-changelog-note"><em><%= l(:text_gk_records_changelog_english) %></em></div><% end %>
-  <details class="gk-changelog"><summary><%= l(:button_show) %></summary>
-  <div class="wiki"><%= Redmine::WikiFormatting.to_html('common_mark', File.read(changelog, encoding: 'UTF-8').sub(/\A.*?(?=^## )/m, '')).html_safe %></div>
-  </details>
-</fieldset>
+<%= gk_gui_stuff_changelog(:gk_records) %>
 <% end %>

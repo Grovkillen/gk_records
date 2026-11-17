@@ -1,79 +1,107 @@
-<%# Administration > Skäl: the installation's mode, then every place per plugin with its default and mode; the places
-    the act or a rule decides last, without a choice. Every change takes a reason and is an event. %>
+<%# Administration > Skäl: one form, as Administration > Utseende and Funktioner (GK GUI Stuff's form page). The
+    installation's mode stands in a box of its own at the top of the form, with its own words, saved with the same
+    Spara and the same reason. The table under it has only places, in a group per plugin: what holds now as a fact
+    cell, then the place's own mode as a radio button in a column per mode. A changed row is marked, the bar at the
+    bottom says what has changed, and Spara takes one reason for every change (the place records.reason_modes). While
+    the installation's mode locks the places, their radio buttons stand in their columns, switched off, and one line
+    over the table says why; the rows open and close with the choice in the box, before the save. The places the act or a rule decides come last, without a choice. Every change is an
+    event. %>
 <% r = GkRecords::Reasons %>
-<% content_for :header_tags do %>
-  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
-  <%= javascript_include_tag 'gk_records_reasons', plugin: 'gk_records' %>
-<% end %>
+<% gk_gui_stuff_form_page_assets %>
 <% mode_label = ->(m) { l("label_gk_records_reason_mode_#{m}") } %>
-<% mode_tag = ->(m, css = nil) { content_tag('span', mode_label.call(m), class: ["gk-records-reason-mode gk-records-reason-mode-#{m}", css].compact.join(' ')) } %>
+<%# the installation's own words: Varje ställe för sig, Av överallt, Valfritt överallt, Krävs överallt %>
+<% all_label = ->(m) { l("label_gk_records_reason_all_#{m}") } %>
+<% mode_tag = ->(m) { content_tag('span', mode_label.call(m), class: "gk-records-reason-mode gk-records-reason-mode-#{m}") } %>
+<%# the mode that holds now as GK GUI Stuff's pill: Krävs in the role warning, Valfritt info, Av muted %>
+<% mode_pill = ->(m) { gk_gui_stuff_pill(mode_label.call(m), role: { 'required' => :warning, 'optional' => :info }.fetch(m, :muted), html: { class: "gk-records-reason-mode gk-records-reason-mode-#{m}" }) } %>
+<% words = ([r::INHERIT] + r::MODES).to_h { |m| [m, mode_label.call(m)] } %>
+<% now_word = l(:label_gk_records_reason_now) %>
+<%# the installation's Av, Valfritt or Krävs locks the places: one line over the table says why, with the mode's
+    own word in it. The box at the top has the line of each mode that locks, and the form page's script follows the
+    choice before anything is saved: Varje ställe för sig opens the places' rows at once, and one mode everywhere
+    closes them at once and shows its line. Everything is saved with the one Spara %>
+<% locked = r.locked? %>
+<% lock_line = lambda do |key, word|
+     before, after = l(key, mode: "\u0001").split("\u0001", 2)
+     safe_join([before, content_tag(:strong, word), after.to_s])
+   end %>
+<% lock_lines = r::MODES.to_h { |m| [m, lock_line.call(:text_gk_records_reasons_locked, all_label.call(m))] } %>
+<%# a mode everywhere that is chosen and not saved has its own words: what will hold when the form is saved. The
+    sentence says "everywhere" itself, so the mode's short word (Av, Valfritt, Krävs) stands in it; the form page's
+    script shows it in place of the line above while the choice is another than the one the page was read with %>
+<% unsaved_lines = r::MODES.to_h { |m| [m, lock_line.call(:text_gk_records_reasons_locked_unsaved, mode_label.call(m))] } %>
 <h2><%= l(:label_gk_records_reasons) %></h2>
 <p class="info"><%= l(:text_gk_records_reasons) %>
   <%# where every change shows: the event log, as a query when gk_queries is there %>
   <% if GkRecords::Features.on?('events') %><%= link_to l(:label_gk_records_reasons_events), (defined?(GkQueries) ? { controller: 'gk_queries', action: 'show', list: 'records_events' } : gk_records_events_path) %><% end %></p>
 
-<fieldset class="box tabular" id="r-all"><legend><%= l(:label_gk_records_reasons_installation) %></legend>
-  <%= form_tag gk_records_reason_path(key: r::ALL), method: :patch, class: 'gk-records-reason-mode-form' do %>
-    <p><label for="gk-records-reason-all"><%= l(:field_gk_records_reason_mode) %></label>
-      <%= select_tag 'mode', options_for_select(([r::PLACES] + r::MODES).map { |m| [mode_label.call(m), m] }, r.installation_mode), id: 'gk-records-reason-all' %>
-      <em class="info"><%= l(:text_gk_records_reasons_installation) %></em></p>
-    <%# the label only where a reason is required: an optional one folds into the field's own link %>
-    <p><% if r.mode('records.reason_modes') == 'required' %><label for="gk-records-reason-all-why"><%= l(:label_gk_records_note_reason) %></label><% end %>
-      <%= gk_records_reason_field('records.reason_modes', id: 'gk-records-reason-all-why', size: 40) %>
-      <%= submit_tag l(:button_save), name: nil %></p>
-  <% end %>
-</fieldset>
-
-<% @places.each do |plugin, places| %>
-  <h3><%= places.first.plugin_name %></h3>
-  <table class="list gk-records-reasons">
-    <colgroup><col class="gk-records-c-place"><col class="gk-records-c-default"><col class="gk-records-c-now"><col class="gk-records-c-mode"></colgroup>
-    <thead><tr><th><%= l(:label_gk_records_reason_place) %></th><th><%= l(:label_gk_records_reason_default) %></th>
-      <th><%= l(:label_gk_records_reason_now) %></th><th><%= l(:field_gk_records_reason_mode) %></th></tr></thead>
-    <tbody>
-    <% places.sort_by(&:label).each do |p| %>
-      <% now = r.mode(p.key) %>
-      <tr id="r-<%= p.key.tr('.', '-') %>" class="<%= cycle('odd', 'even') %>">
-        <td class="name"><%= p.label %><% if p.admin %> <span class="gk-records-meta">(<%= l(:label_gk_records_reason_admin) %>)</span><% end %></td>
-        <td class="default_mode"><%= mode_tag.call(p.default) %><%= " (#{l(:text_gk_records_reason_min, count: p.min)})" if p.min %></td>
-        <td class="current_mode"><%= mode_tag.call(now, "badge #{{ 'required' => 'badge-status-closed', 'optional' => 'badge-status-open' }.fetch(now, 'badge-status-locked')}") %></td>
-        <td class="buttons">
-          <%# the installation's Av, Valfritt or Krävs locks the places; the place's own choice shows, greyed %>
-          <% if r.locked? %>
-            <%# the same row as the form, so it stands at the start as the form does %>
-            <div class="gk-records-reason-locked">
-              <%= select_tag 'mode', options_for_select(([r::INHERIT] + r::MODES).map { |m| [mode_label.call(m), m] }, r.own_mode(p.key)), id: nil,
-                             disabled: true, 'aria-label': l(:field_gk_records_reason_mode) %>
-              <em class="info"><%= l(:text_gk_records_reason_locked) %></em>
-            </div>
-          <% else %>
-          <%= form_tag gk_records_reason_path(key: p.key), method: :patch, class: 'gk-records-reason-mode-form',
-                       data: { unchanged: l(:text_gk_records_reason_unchanged) } do %>
-            <%= select_tag 'mode', options_for_select(([r::INHERIT] + r::MODES).map { |m| [mode_label.call(m), m] }, r.own_mode(p.key)), id: nil,
-                           'aria-label': l(:field_gk_records_reason_mode) %>
-            <%= gk_records_reason_field('records.reason_modes', size: 18) %>
-            <%= submit_tag l(:button_save), name: nil %>
+<%# a group's count is its number of places, also after the script has counted. autocomplete: 'off' so that a browser
+    that puts a form's choices back when the page is read again leaves them as they are saved; the page
+    writes it on its own form, and no helper adds it %>
+<%= form_tag gk_records_reasons_path, method: :patch, id: 'gk-records-reasons-form', class: 'gk-gui-stuff-form-page', autocomplete: 'off',
+             data: gk_gui_stuff_form_page_data(words: { modes: words, on: '%{count}' }) do %>
+  <%= gk_gui_stuff_form_page_top %>
+  <%# the installation: its first choice lets every place keep its own; the script counts the box as a row %>
+  <%= gk_gui_stuff_form_page_lead(l(:label_gk_records_reasons_installation), name: 'installation',
+                                  choices: ([r::PLACES] + r::MODES).map { |m| [all_label.call(m), m] }, selected: r.installation_mode,
+                                  help: l(:text_gk_records_reasons_installation), locked: lock_lines, locked_unsaved: unsaved_lines,
+                                  html: { id: 'r-all' }) %>
+  <%# the first level column is a place's "by the system setting"; four level columns stand two and two when a row
+      stacks %>
+  <%= gk_gui_stuff_form_page_table(head: l(:label_gk_records_reason_place), cols: 4, facts: [now_word],
+                                   levels: [l(:label_gk_records_reason_col_default)] + r::MODES.map { |m| mode_label.call(m) }) do %>
+    <% @places.each_with_index do |(_plugin, places), i| %>
+      <% list = places.sort_by(&:label) %>
+      <%= gk_gui_stuff_form_page_group_head(list.first.plugin_name, list.size, "gk-records-reasons-group-#{i}", 6) %>
+      <tbody id="gk-records-reasons-group-<%= i %>" class="gk-gui-stuff-form-page-group-body">
+        <% list.each do |p| %>
+          <% own = r.own_mode(p.key) %>
+          <%= content_tag(:tr, id: "r-#{p.key.tr('.', '-')}", class: 'gk-gui-stuff-form-page-row',
+                               data: { gk_gui_row: p.key, gk_gui_search: gk_gui_stuff_form_page_search_text(p.label, p.plugin_name, key: p.key, label_key: p.label_key) }) do %>
+            <td class="name">
+              <span class="gk-gui-stuff-form-page-name"><%= p.label %></span>
+              <% if p.admin %><%= gk_gui_stuff_flag(l(:label_gk_records_reason_admin), inline: true, role: :admin, title: l(:text_gk_records_reason_admin)) %><% end %>
+              <%= gk_gui_stuff_form_page_key(p.key) %>
+              <span class="gk-gui-stuff-form-page-was" hidden></span>
+              <% if p.min %><span class="gk-gui-stuff-form-page-help"><%= l(:text_gk_records_reason_min, count: p.min).upcase_first %></span><% end %>
+            </td>
+            <%# what holds now: a fact, nothing to change in it. It is what is saved, also while a choice in the box
+                at the top is not saved yet: nothing applies before the save %>
+            <%= gk_gui_stuff_form_page_fact(mode_pill.call(r.mode(p.key)), word: now_word) %>
+            <%# the place's own choice in its columns; switched off, and still shown, while the installation locks it,
+                and it follows the box at the top before the save %>
+            <% ([r::INHERIT] + r::MODES).each do |m| %>
+              <%# the place's default, quietly, under the mode it is: the form page's own word %>
+              <% mark = p.default == m ? gk_gui_stuff_form_page_default_mark : nil %>
+              <%= gk_gui_stuff_form_page_radio("modes[#{p.key}]", m, own == m, label: "#{p.label}: #{mode_label.call(m)}", word: mode_label.call(m),
+                                               disabled: locked, follows_lead: 'installation', extra: mark) %>
+            <% end %>
           <% end %>
-          <% end %>
-        </td>
-      </tr>
+        <% end %>
+      </tbody>
     <% end %>
-    </tbody>
-  </table>
+  <% end %>
+  <%# the bar offers what the place asks for and nothing more: while the place is off, Spara opens the same box with
+      the changes and no field for a reason %>
+  <%= gk_gui_stuff_form_page_bar(GkRecordsReasonsController::PLACE) %>
 <% end %>
 
 <% if @fixed.any? %>
   <h3><%= l(:label_gk_records_reasons_fixed) %></h3>
   <p class="info"><%= l(:text_gk_records_reasons_fixed) %></p>
-  <table class="list gk-records-reasons">
-    <thead><tr><th><%= l(:field_gk_records_target_plugin) %></th><th><%= l(:label_gk_records_reason_place) %></th><th><%= l(:label_gk_records_reason_now) %></th></tr></thead>
-    <tbody>
+  <% columns = [{ key: :plugin, label: l(:field_gk_records_target_plugin), slot: :first, html: { class: 'plugin' } },
+                { key: :place, label: l(:label_gk_records_reason_place), slot: :grow, html: { class: 'name' } },
+                { key: :now, label: l(:label_gk_records_reason_now), html: { class: 'current_mode' } }] %>
+  <%= gk_gui_stuff_table(columns: columns, html: {}) do %>
     <% @fixed.each do |_plugin, places| %>
       <% places.sort_by(&:label).each do |p| %>
-        <tr class="<%= cycle('odd', 'even') %>"><td class="plugin"><%= p.plugin_name %></td><td class="name"><%= p.label %></td><td class="current_mode"><%= mode_tag.call(p.default) %></td></tr>
+        <%= gk_gui_stuff_table_row(html: { class: cycle('odd', 'even') }) do %>
+          <%= gk_gui_stuff_table_cell(:plugin, p.plugin_name) %>
+          <%= gk_gui_stuff_table_cell(:place, p.label) %>
+          <%= gk_gui_stuff_table_cell(:now, mode_tag.call(p.default)) %>
+        <% end %>
       <% end %>
     <% end %>
-    </tbody>
-  </table>
+  <% end %>
 <% end %>
 <% html_title l(:label_gk_records_reasons) %>

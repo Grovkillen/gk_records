@@ -1,28 +1,106 @@
+<%# Verifieringsstatus: the status as a pill with a dot in its role, and for whoever may change it the pill is a
+    button with ▾ that opens the box with the steps under it (GkGui.popover). After the pill the quiet words "ändrad
+    <datum> av <namn>" and the flags in elements of their own. The rail (gk_gui_stuff_rail) says Sparar…, Sparat or
+    Inte sparat; gk_records_verification.js binds it and sends the change as JSON. The
+    box needs the script, as every popover does. %>
 <% v = GkRecords::Verification %>
-<% content_for :header_tags do %><%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %><% end %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'gk_records', plugin: 'gk_records' %>
+  <%= javascript_include_tag 'gk_records_verification', plugin: 'gk_records' %>
+<% end %>
 <% st = v.get(obj) %>
 <% may = v.may_set?(obj) %>
+<% verified = st == 'verified' %>
+<% rv = v.reviewer %>
+<%# the place's levels and words: a level that is off is left out; Verifierad is a step by hand where the place does
+    not lock it to the review, else the locked step and the line about the review only where the thing may be reviewed %>
+<% place = v.place(obj) %>
+<% title = v.title(place) %>
+<% locked = v.review_locked?(obj) %>
+<% levels = v.levels_for(obj, st) %>
+<% hand = v::Ladder.hand_steps(levels, locked) %>
+<% reviewable = locked && v.reviewable?(obj) %>
+<% open = v.open_review(obj) %>
+<% changed = v.changed_since_review?(obj, st) %>
+<% ref = GkRecords::Targets.ref(obj) %>
 <% anchor = obj.is_a?(Issue) ? 'gk-records-verification' : "gk-records-verification-#{GkRecords::Targets.for_object(obj)&.key}-#{obj.id}" %>
-<%# what the status is for, on hover rather than as text in the row; the review is named only
-    where a plugin reviews (signoff), never where it cannot be done %>
-<% help = l(v.reviewer ? :text_gk_records_verification_help_review : :text_gk_records_verification_help) %>
-<%# the tip on Ändra status only, not on the whole box; where nobody may change it, on the box %>
-<span class="gk-records-verification-box" id="<%= anchor %>"<% unless may %> title="<%= help %>"<% end %>>
-  <%= st ? gk_records_verification_badge(obj) : content_tag('span', l(:label_gk_records_verification_none), class: 'gk-records-meta') %>
-  <% if v.reviewer && v.reviewer[:partial] %>
-    <%= render partial: v.reviewer[:partial], locals: { obj: obj, back_url: back_url } %>
+<% verified_word = v.label('verified', place: place) %>
+<% named = ->(list) { (list - [v::NONE]).map { |s| v.label(s, place: place) }.join(', ') } %>
+<% help = reviewable ? l(:text_gk_records_verification_help_review, steps: named.call(hand + ['verified']), verified: verified_word) : l(:text_gk_records_verification_help, steps: named.call(hand)) %>
+<%# the box opens for whoever may change the status, and on Verifierad also to show the review, but for a reader only
+    where the review part has something to show (the place sets Verifierad through the review, or a review is open) %>
+<% opens = v::Ladder.opens?(may: may, verified: verified, partial: !!(rv && rv[:partial]), locked: locked, open: !!open) %>
+<% label = v.pill_label(st, place: place) %>
+<% tip = may ? help : l(:text_gk_records_verification_cannot, title: title) %>
+<% reason_mode = GkRecords::Reasons.mode(v::REASON) %>
+<%= gk_gui_stuff_rail(url: gk_records_verification_path, method: :post, tag: :span,
+                      html: { class: 'gk-records-verification-box', id: anchor,
+                              data: { gk_records_verification: ref, gk_records_verification_reason: reason_mode,
+                                      gk_records_verification_back: back_url, gk_records_verification_status: st || v::NONE,
+                                      gk_records_verification_words: { saving: l(:text_gk_records_verification_saving), saved: l(:text_gk_records_verification_saved),
+                                                                        not_saved: l(:text_gk_records_verification_not_saved, why: '%{why}'),
+                                                                        no_answer: l(:text_gk_records_verification_no_answer),
+                                                                        withdraw: l(:button_gk_records_verification_withdraw_change),
+                                                                        cancel: l(:button_cancel) }.to_json } }) do %>
+  <%= gk_gui_stuff_pill(label, role: v.role(st), dot: true,
+                        icon_after: verified && locked ? 'lock' : (may ? 'angle-down' : nil),
+                        icon_after_label: verified && locked ? l(:text_gk_records_verification_locked) : nil,
+                        as: opens ? :button : nil, title: tip,
+                        html: opens ? { 'aria-expanded': 'false', 'aria-haspopup': 'dialog', 'aria-label': "#{title}, #{label}",
+                                        data: { gk_records_verification_pill: '1' }.merge(GkGuiStuff::Primitives::POPOVER_ANCHOR) } : { 'aria-label': "#{title}, #{label}" }) %>
+  <% if (by = v.set_by(obj)) %>
+    <% who = by[1] && GkRecords::Visibility.visible_user?(by[1], User.current) ? by[1].name : nil %>
+    <%= gk_gui_stuff_quiet(who ? l(:text_gk_records_verification_set_by, date: format_date(by[0]), name: who) : l(:text_gk_records_verification_set_on, date: format_date(by[0]))) %>
   <% end %>
-  <% if may %>
-    <%# one tip, on the summary %>
-    <details class="gk-records-verification-edit"><summary title="<%= help %>"><%= l(:button_gk_records_verification_change) %></summary>
-      <%= form_tag gk_records_verification_path, class: 'gk-records-verification-form' do %>
-        <%= hidden_field_tag :target, GkRecords::Targets.ref(obj), id: nil %>
+  <% if open %>
+    <%= gk_gui_stuff_flag(l(:label_gk_records_verification_flag_requested), inline: true, role: :info) %>
+    <%= gk_gui_stuff_quiet(l(:text_gk_records_verification_waiting, have: open[:have], need: open[:need])) %>
+  <% end %>
+  <% if changed %>
+    <%= gk_gui_stuff_flag(l(:label_gk_records_verification_flag_changed), inline: true, role: :warning, title: l(:text_gk_records_verification_changed, step: verified_word)) %>
+  <% end %>
+  <% if opens %>
+    <%# The box: drawn here hidden and opened under the pill by the script; the steps as pills that are buttons with a
+        dot, the current one ringed, Verifierad expected with a lock where a plugin reviews, never chosen by hand;
+        Spara and Avbryt side by side, the reason under them; Begär granskning… and the review from the reviewer as a
+        part of the box with a line before it %>
+    <div hidden data-gk-records-verification-panel="1">
+      <%= form_tag gk_records_verification_path, 'aria-label': title, data: { gk_records_verification_form: '1' } do %>
+        <%= hidden_field_tag :target, ref, id: nil %>
         <%= hidden_field_tag :back_url, back_url, id: nil %>
-        <%= select_tag :status, options_for_select(v.manual_options + [[l(:label_gk_records_verification_none), v::NONE]], (st if v::MANUAL.include?(st))),
-                       prompt: l(:label_gk_records_verification_choose), required: true, id: nil, 'aria-label': v.title %>
-        <%= gk_records_reason_field(v::REASON, size: 30) %>
-        <%= submit_tag l(:button_save), name: nil %>
+        <% if may %>
+          <span class="gk-gui-stuff-pill-row gk-records-verification-steps" role="group" aria-label="<%= l(:label_gk_records_verification_choose_step) %>">
+            <% now = v::LADDER.index(st || v::NONE) || 0 %>
+            <% hand.each do |s| %>
+              <% word = v.pill_label(s, place: place) %>
+              <%= gk_gui_stuff_pill(word, role: v.role(s), dot: true, as: :button, current: (st || v::NONE) == s,
+                                    title: v::LADDER.index(s) < now ? l(:text_gk_records_verification_back_to, step: word) : nil,
+                                    html: { name: 'status', value: s, 'aria-pressed': 'false', data: { gk_records_verification_step: s } }) %>
+            <% end %>
+            <% if reviewable %>
+              <%= gk_gui_stuff_pill(verified_word, role: v.role('verified'), dot: true, as: :button, expected: !verified, current: verified,
+                                    icon_after: 'lock', icon_after_label: l(:text_gk_records_verification_locked),
+                                    html: { disabled: true, 'aria-disabled': 'true', title: l(:text_gk_records_verification_review_line, step: verified_word) }) %>
+            <% end %>
+          </span>
+          <%# the line of help under the steps is quiet text on a row of its own %>
+          <% if reviewable %><%= gk_gui_stuff_quiet(l(:text_gk_records_verification_review_line, step: verified_word), tag: :p) %>
+          <% elsif !locked %><%= gk_gui_stuff_quiet(l(:text_gk_records_verification_hand_line, step: verified_word), tag: :p) %><% end %>
+          <%# Spara and Avbryt side by side (GK GUI Stuff's popover buttons), the reason right after them as GK GUI Stuff's
+              reason (gk_gui_stuff_reason_block); the script copies the panel into the box and reads the reason there,
+              and the place's least length on the reason's text area %>
+          <%= gk_gui_stuff_popover_buttons(l(:button_save), keys: reason_mode != 'off', html: { disabled: true, data: { gk_records_verification_save: '1' } }) %>
+          <% unless reason_mode == 'off' %>
+            <% rplace = GkRecords::Reasons.find(v::REASON) %>
+            <%= gk_gui_stuff_reason_block(required: reason_mode == 'required', id: "#{anchor}-reason", name: 'reason',
+                                          area: { data: { gk_records_reason_min: reason_mode == 'required' ? rplace&.min : nil } }) %>
+          <% end %>
+        <% end %>
       <% end %>
-    </details>
+      <% if rv && rv[:partial] %>
+        <%# the review: the request with its counts, approve and reject for a reviewer, Begär granskning… for whoever may ask %>
+        <%= gk_gui_stuff_popover_part do %><%= render partial: rv[:partial], locals: { obj: obj, back_url: back_url } %><% end %>
+      <% end %>
+    </div>
   <% end %>
-</span>
+<% end %>

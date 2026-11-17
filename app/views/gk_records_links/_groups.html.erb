@@ -1,5 +1,6 @@
 <%# The links of one thing, grouped by kind and direction (links_view). compact: the tab on an issue (no filters,
-    the way to the full page below); otherwise the page itself. %>
+    the way to the full page below); otherwise the page itself. One table (GK GUI Stuff's): the columns are said once,
+    each group is a row of it with its fold button and its count, and the rows stack on a narrow screen. %>
 <% ref = "#{@target_def.key}:#{@target.id}" %>
 <% groups = GkRecords::Links.groups(@links, @target_def.key, @target.id) %>
 <div class="gk-records-links-view">
@@ -7,39 +8,54 @@
 <% if compact && @linkable %>
   <div class="contextual gk-records-tab-add"><%= link_to sprite_icon('add', l(:label_gk_records_add_link)), gk_records_links_page_path(target: ref, anchor: 'gk-records-add'), class: 'icon icon-add', title: l(:text_gk_records_add_link_tab) %></div>
 <% end %>
-<% if groups.empty? %><p class="nodata"><%= l(:label_no_data) %></p><% end %>
-<% groups.each do |label, rows| %>
-  <h4 class="gk-records-group"><%= label %> <span class="gk-records-num">(<%= rows.count { |k| k.voided_at.nil? } %>)</span></h4>
-  <%# Void (the link's removal, kept as voided) in the row menu ("..." and a right click) when gui_stuff is there %>
-  <table class="list gk-records-links-table"<%= ' data-gk-gui-rowmenu'.html_safe if @linkable && !compact %>>
-    <tbody>
-    <% rows.each do |k| %>
-      <% okey, oid, _out = GkRecords::Links.other(k, @target_def.key, @target.id) %>
-      <tr class="<%= 'gk-records-voided' if k.voided_at %>">
-        <td class="type gk-records-thing"><span class="gk-records-kindtag gk-records-thing-kind gk-records-thing-kind-<%= okey %>"><%= GkRecords::Targets.thing_label(okey) %></span></td>
-        <td class="name gk-records-other"><%= gk_records_ref_link(okey, oid) %></td>
-        <td class="status gk-records-state"><%= gk_records_other_state(okey, oid) %></td>
-        <%# A citation's text is the place in the source, beside the link %>
-        <% locator = GkRecords::Kinds.find(:link, k.kind)&.citation && k.reason.present? %>
-        <td class="comments gk-records-why<%= ' gk-records-locator' if locator %>" title="<%= l(:label_gk_records_link_locator) if locator %>"><%= k.shown_reason %><%= gk_records_text_now(k.reason_now) %></td>
-        <td class="author gk-records-by-when"><%= gk_records_user(k.user, on: @target) %>
-          <span class="gk-records-when"><%= format_time(k.created_at) %></span><%= gk_records_origin_badge(k.origin) %></td>
-        <td class="buttons">
-          <% if k.voided_at %><span class="gk-records-meta"><%= l(:label_gk_records_event_voided) %> <%= format_time(k.voided_at) %></span>
+<% if groups.empty? %><p class="nodata"><%= l(:label_no_data) %></p><% else %>
+<%# The cells keep core's own cell classes; the last column is core's column of actions %>
+<% columns = [{ key: :type, label: l(:label_gk_records_kind), width: '9em', slot: :first, html: { class: 'type' } },
+              { key: :thing, label: l(:label_gk_records_link_thing), width: '30%', slot: :grow, html: { class: 'name' } },
+              { key: :state, label: l(:field_status), width: '10em', tone: :soft, html: { class: 'status' } },
+              { key: :why, label: l(:label_gk_records_link_why), slot: :full, tone: :muted, html: { class: 'comments' } },
+              { key: :by, label: l(:label_gk_records_link_by_when), width: '22em', html: { class: 'author' } },
+              { key: :act, label: '', width: '9em', slot: :end, html: { class: 'buttons' } }] %>
+<%# Void (the link's removal, kept as voided) in GK GUI Stuff's row menu ("..." and a right click), confirmed in the upper layer %>
+<% menu = @linkable && !compact %>
+<%= gk_gui_stuff_table(columns: columns, html: { class: 'gk-records-links-table', data: menu ? { gk_gui_rowmenu: '' } : {} }) do %>
+  <% groups.each do |label, rows| %>
+    <%= gk_gui_stuff_table_group(label) do %>
+      <% rows.each do |k| %>
+        <% okey, oid, _out = GkRecords::Links.other(k, @target_def.key, @target.id) %>
+        <%= gk_gui_stuff_table_row(state: k.voided_at ? :voided : nil) do %>
+          <%= gk_gui_stuff_table_cell(:type, gk_gui_stuff_pill(GkRecords::Targets.thing_label(okey), html: { class: "gk-records-thing-kind gk-records-thing-kind-#{okey}" })) %>
+          <%= gk_gui_stuff_table_cell(:thing, gk_records_ref_link(okey, oid)) %>
+          <%# core's closed badge never breaks inside: the cell's nowrap:, only where the badge stands %>
+          <% state = GkRecords::Links.state(okey, oid) %>
+          <%= gk_gui_stuff_table_cell(:state, gk_records_other_state(okey, oid, state), nowrap: state && state[:closed] ? true : nil) %>
+          <%# A citation's text is the place in the source, beside the link: plain text, where a reason is muted %>
+          <% locator = GkRecords::Kinds.find(:link, k.kind)&.citation && k.reason.present? %>
+          <%= gk_gui_stuff_table_cell(:why, safe_join([k.shown_reason, gk_records_text_now(k.reason_now)].select(&:present?)), tone: locator ? false : nil,
+                                            html: locator ? { title: l(:label_gk_records_link_locator) } : {}) %>
+          <%# when, and "voided" with its time, are quiet text %>
+          <%= gk_gui_stuff_table_cell(:by) do %><%= gk_records_user(k.user, on: @target) %>
+            <%= gk_gui_stuff_quiet(format_time(k.created_at), nowrap: true) %><%= gk_records_origin_badge(k.origin) %><% end %>
+          <% if k.voided_at %>
+            <%= gk_gui_stuff_table_cell(:act, gk_gui_stuff_quiet("#{l(:label_gk_records_event_voided)} #{format_time(k.voided_at)}", soft: true)) %>
           <%# an icon with the word, as core's row actions %>
-          <% elsif @linkable && !compact %><%= link_to sprite_icon('del', l(:button_gk_records_void)), gk_records_link_void_path(k, target: ref), method: :post,
-                                                        class: 'icon icon-del gk-records-action', title: l(:button_gk_records_void),
-                                                        data: { confirm: l(:text_gk_records_link_void_confirm), gk_gui_row_action: 'delete' } %><% end %>
-        </td>
-      </tr>
+          <% elsif menu %>
+            <%= gk_gui_stuff_table_cell(:act, link_to(sprite_icon('del', l(:button_gk_records_void)), gk_records_link_void_path(k, target: ref), method: :post,
+                                                      class: 'icon icon-del gk-records-action', title: l(:button_gk_records_void),
+                                                      data: gk_gui_stuff_confirm_data(l(:text_gk_records_link_void_confirm)).merge(gk_gui_row_action: 'delete'))) %>
+          <% else %>
+            <%= gk_gui_stuff_table_cell(:act) %>
+          <% end %>
+        <% end %>
+      <% end %>
     <% end %>
-    </tbody>
-  </table>
+  <% end %>
 <% end %>
-<%= gk_gui_stuff_row_menu if @linkable && !compact && groups.any? && respond_to?(:gk_gui_stuff_row_menu) %>
+<% end %>
+<%= gk_gui_stuff_row_menu if menu && groups.any? %>
 <%# Lägg till koppling goes to the same page, so the link to it is only for a reader who may not add %>
 <% if compact && !@linkable %>
   <%# what the page is, on hover %>
-  <p class="gk-records-open"><%= link_to l(:label_gk_records_open_as_page), gk_records_links_page_path(target: ref), title: l(:text_gk_records_open_as_page) %></p>
+  <p><%= link_to l(:label_gk_records_open_as_page), gk_records_links_page_path(target: ref), title: l(:text_gk_records_open_as_page) %></p>
 <% end %>
 </div>

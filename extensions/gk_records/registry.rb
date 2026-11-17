@@ -48,8 +48,13 @@ module GkRecords
   # names and scale: an assessment kind that is data (AssessmentKinds) has its names per language ({ 'sv' => 'Dubbla
   # användningsområden', 'en' => 'Dual use' }) instead of a locale key, and may have a scale, the outcomes it is valued
   # on ([{ 'key' => 'possible', 'names' => {... } }]); nil for the kinds plugins register.
+  # rows: for event kinds, how the owner says an event's changes in words, ->(details, viewer) { [{ label:, from:, to: }
+  # | { label:, value: } | { label:, to: }] } with plain texts only: the event log draws them as GK GUI Stuff's values in
+  # the mode changes, the old struck through, an arrow and the new, and its CSV, search and query column say them as
+  # "label: from > to". The details are those the viewer may see (GkRecordsEvent#change_details). nil, or rows that
+  # fail, and the details are drawn field by field as before (Kinds.event_rows).
   Kind = Struct.new(:scope, :key, :plugin, :label_key, :symmetric, :acyclic, :target, :attention, :manual, :reverse_label_key,
-                    :person_fields, :permission, :targets, :sources, :private_fields, :check, :citation, :names, :scale,
+                    :person_fields, :permission, :targets, :sources, :private_fields, :check, :citation, :names, :scale, :rows,
                     keyword_init: true) do
     def label = names.present? ? Kinds.name_in(names) : ::I18n.t(label_key, default: key.to_s.tr('_', ' ').capitalize)
 
@@ -90,6 +95,8 @@ module GkRecords
 
     # A registered target's model gets the identity hook (Identity.install), so every new thing of it has a global id;
     # a model that cannot take it yet is tried again later
+    # The register never asks the gate (gate.rb): a target is known also without GK GUI Stuff, so that events, notes,
+    # assessments and links are written all the same
     def register(key, model:, visible:, editable:, label:, url:, linkable: nil, voided: nil)
       t = all[key.to_s] = Target.new(key: key.to_s, model: model.to_s, visible: visible, editable: editable, label: label, url: url,
                                      linkable: linkable, voided: voided)
@@ -180,8 +187,11 @@ module GkRecords
 
     def register(scope, key, plugin:, label_key:, symmetric: false, acyclic: false, target: nil, attention: false, manual: false,
                  reverse_label_key: nil, person_fields: nil, permission: nil, targets: nil, sources: nil, private_fields: nil,
-                 check: nil, citation: false)
+                 check: nil, citation: false, rows: nil)
+      # never asks the gate (gate.rb): a kind is known also without GK GUI Stuff
       raise ArgumentError, "link kind #{key}: a symmetric kind has no direction and cannot be acyclic" if symmetric && acyclic
+      raise ArgumentError, "#{scope} kind #{key}: rows belong to event kinds" if rows && scope.to_s != 'event'
+      raise ArgumentError, "event kind #{key}: rows is a lambda (details, viewer)" if rows && !rows.respond_to?(:call)
       raise ArgumentError, "#{scope} kind #{key}: check belongs to link kinds" if check && scope.to_s != 'link'
       raise ArgumentError, "#{scope} kind #{key}: citation belongs to link kinds" if citation && scope.to_s != 'link'
       raise ArgumentError, "link kind #{key}: a citation has a direction (from the thing to what it cites)" if citation && symmetric
@@ -201,7 +211,8 @@ module GkRecords
       all["#{scope}:#{key}"] = Kind.new(scope: scope.to_s, key: key.to_s, plugin: plugin.to_s, label_key: label_key, symmetric: symmetric,
                                         acyclic: acyclic, target: target&.to_s, attention: attention, manual: manual,
                                         reverse_label_key: reverse_label_key, person_fields: fields, permission: permission&.to_sym,
-                                        targets: allowed, sources: from, private_fields: bound, check: check, citation: citation ? true : false)
+                                        targets: allowed, sources: from, private_fields: bound, check: check, citation: citation ? true : false,
+                                        rows: rows)
     end
 
     # Whether register_link takes targets:, so an owner plugin may ask before it passes them
@@ -212,6 +223,8 @@ module GkRecords
     # Whether register_link takes check: and citation:, likewise
     def link_checks? = true
     def link_citations? = true
+    # Whether register_event takes rows:, likewise
+    def event_rows? = true
 
     def register_note(key, **opts) = register(:note, key, **opts)
     def register_event(key, **opts) = register(:event, key, **opts)
@@ -245,6 +258,32 @@ module GkRecords
 
     # The detail fields an event kind declared as belonging to its target (register_event private_fields:)
     def private_fields(kind) = find(:event, kind)&.private_fields || []
+
+    # An event's changes in the owner's words (register_event rows:): a list of rows { label:, from:, to: } or
+    # { label:, value: }, every value a plain text; nil when the kind has no rows, or they fail (logged), so that the
+    # details are drawn field by field as before
+    def event_rows(kind, details, viewer = nil)
+      fn = find(:event, kind)&.rows
+      return nil unless fn
+
+      out = Array(fn.call(details || {}, viewer)).map { |r| r.to_h.transform_keys(&:to_sym).slice(:label, :from, :to, :value).transform_values { |v| v.nil? ? nil : v.to_s } }
+      out.any? ? out : nil
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] rows of event kind #{kind} failed: #{e.class} #{e.message}") if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
+      nil
+    end
+
+    # A row of event_rows as one line of text: "label: from > to" or "label: value". A row with one side only keeps
+    # its direction in words, the other side as core's "(ingen)": "x > (ingen)" for what was taken out, "(ingen) > x"
+    # for what was put in, so that a removed entry never reads as the value
+    def row_text(row, sep = '>')
+      from = row[:from].presence
+      to = row[:to].presence
+      change = if from || to then "#{from || ::I18n.t(:label_none)} #{sep} #{to || ::I18n.t(:label_none)}"
+               else row[:value].to_s
+               end
+      row[:label].present? ? "#{row[:label]}: #{change}" : change
+    end
 
     # The kinds offered in the writing box only when the function records.more_note_kinds is on; kommentar and skäl
     # always. Notes of every kind are shown and the API takes them.
@@ -384,6 +423,7 @@ module GkRecords
     module_function
 
     def record(target, kind, values:, outcome: nil, title: nil, title_translations: nil, basis: nil, user: User.current, origin: 'human', source: nil, at: Time.current)
+      # written also while the gate is closed (gate.rb): an assessment is a trace
       t = Targets.for_object(target)
       raise ArgumentError, "#{target.class.name} is not a registered records target" unless t
       raise ArgumentError, "assessment kind #{kind} is not registered" unless Kinds.find(:assessment, kind)
@@ -407,12 +447,31 @@ module GkRecords
   module Events
     module_function
 
-    # Listeners on new events (triggers), keyed so a reloaded plugin replaces its own; called after commit
+    # Listeners on new events (triggers), keyed so a reloaded plugin replaces its own; called after commit.
+    # The key is the id of the subscriber's own plugin (subscribe(:gk_mine)), nothing else: while the gate to GK GUI
+    # Stuff is closed the key alone decides whether the listener is reached (REACHED_WHEN_CLOSED below). Nothing
+    # enforces the rule, so a plugin that subscribes under another name is passed over then.
     def subscribers = (@subscribers ||= {})
     def subscribe(key, &block) = (subscribers[key.to_s] = block)
 
+    # The subscriber keys that are reached while the gate to GK GUI Stuff is closed (gate.rb). A subscriber's key is
+    # the id of its plugin (subscribe(:gk_mine)), and these are the plugins released together with this records, whose
+    # own gates ask the same question. Every other subscriber is passed over while the gate is closed: the event is
+    # written, but what follows from it (a trigger, a sign-off request made by itself) is no trace and does not run.
+    # With the gate open every subscriber is reached. A plugin that gets a gate of its own is added here when it is
+    # released.
+    REACHED_WHEN_CLOSED = %w[gk_access gk_compat gk_core_stuff gk_fields gk_gui_stuff gk_icons gk_people gk_records
+                             gk_scenarios gk_tags gk_theme_engine].freeze
+
+    # The same question for one key, for a neighbour that wants to know whether its listener runs now; records itself
+    # asks in notify
+    def reached?(key) = GkRecords.gui? || REACHED_WHEN_CLOSED.include?(key.to_s)
+
     def notify(event)
+      open = GkRecords.gui?
       subscribers.each do |key, block|
+        next unless open || REACHED_WHEN_CLOSED.include?(key)
+
         block.call(event)
       rescue StandardError => e
         Rails.logger.warn("[gk_records] subscriber #{key} failed on event #{event.id}: #{e.class} #{e.message}")
@@ -427,6 +486,8 @@ module GkRecords
     # reason_key was taken): the reason is then the text in the instance's language as the fallback, and the reason
     # note (or, on an issue, the event) keeps the key and values, so it is shown in the reader's language as it stood.
     # A reason given inside SystemText.as_reason that is exactly its text is taken the same way.
+    # Written also while the gate to GK GUI Stuff is closed (gate.rb): the event then says so in its details, the field
+    # Gate::DETAIL with why the gate was closed ("missing", "old" or "inactive").
     def write(target, kind, details: {}, reason: nil, user: User.current, acting_user: nil, origin: 'human', project: nil, reason_key: nil,
               reason_text_key: nil, reason_text_values: nil)
       t = Targets.for_object(target)
@@ -440,6 +501,8 @@ module GkRecords
         keyed = { text_key: claimed[0].to_s.first(200), text_values: claimed[1].to_json }
       end
       details = Ref.normalize(details || {})
+      closed = GkRecords.gui_closed
+      details = details.to_h.merge(Gate::DETAIL => closed.to_s) if closed
       reason_note = nil
       if reason.present?
         note = GkRecordsNote.new(target_type: t.key, target_id: target.id, kind: 'reason', body: reason.to_s,
