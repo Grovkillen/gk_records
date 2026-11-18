@@ -41,7 +41,7 @@ Redmine::Plugin.register :gk_records do
   name        'GK Records'
   author      'Jimmy Westberg'
   description 'Records: one shared layer for notes, events and links on everything that is not an issue'
-  version     '1.06.000'
+  version     '1.07.000'
   requires_redmine version_or_higher: '6.0.0'
 
   # mark_restricted_people is off for a new installation (a default only); the functions (GkRecords::Features), the
@@ -90,8 +90,9 @@ end
 
 # Everything below is records at work, in two layers (gate.rb). What writes traces is registered and patched whatever
 # the gate to GK GUI Stuff says: the targets and the kinds, the functions' register, the identities, the settings'
-# history, the export log and the print script. What a person works with is registered only with the gate open (the
-# lines with "if gui"): the reason places, the appearance settings, the verification places, the patches that draw,
+# history, the export log, the print script and records' own verification places (they lock an issue's place to the
+# review). What a person works with is registered only with the gate open (the lines with "if gui", and the block at
+# the end): the reason places, the appearance settings, the verification status' row and levels, the patches that draw,
 # the view listeners and what records registers in other plugins. The lines stand in one order for both, so that the
 # order with the gate open is the same as before. gate.rb is required above and GK GUI Stuff loads before records, so
 # the gate answers here.
@@ -123,8 +124,10 @@ GkRecords::Readings.register_target!
 GkRecords::IssueLinks.register_target!
 # An assessment is a target, so it can carry a verification status and its events
 GkRecords::Verification.register_assessment_target!
-# Records' own verification places: the issue default (each tracker falls back to it) and the assessments
-GkRecords::Verification.register_places! if gui
+# Records' own verification places: the issue default (each tracker falls back to it) and the assessments. Always, so
+# an issue's place is locked to the review also while the gate is closed: verified is then refused (no reviewer is
+# reached), never set by hand. The places draw nothing; the rows, the column and the levels stay behind the gate
+GkRecords::Verification.register_places!
 # Core's document is a target (Läs in dokument points its fields to the reading and links it)
 GkRecords::DocumentImport.register_target!
 # Core patches (extensions/gk_records/patches.rb), applied here and again on every reload. Always: the settings'

@@ -260,13 +260,14 @@ module GkRecords
     def private_fields(kind) = find(:event, kind)&.private_fields || []
 
     # An event's changes in the owner's words (register_event rows:): a list of rows { label:, from:, to: } or
-    # { label:, value: }, every value a plain text; nil when the kind has no rows, or they fail (logged), so that the
+    # { label:, value: }, every value a plain text (signed: true for sides that carry their own sign, see row_text);
+    # nil when the kind has no rows, or they fail (logged), so that the
     # details are drawn field by field as before
     def event_rows(kind, details, viewer = nil)
       fn = find(:event, kind)&.rows
       return nil unless fn
 
-      out = Array(fn.call(details || {}, viewer)).map { |r| r.to_h.transform_keys(&:to_sym).slice(:label, :from, :to, :value).transform_values { |v| v.nil? ? nil : v.to_s } }
+      out = Array(fn.call(details || {}, viewer)).map { |r| r.to_h.transform_keys(&:to_sym).slice(:label, :from, :to, :value, :signed).transform_values { |v| v.nil? ? nil : v.to_s } }
       out.any? ? out : nil
     rescue StandardError => e
       Rails.logger.warn("[gk_records] rows of event kind #{kind} failed: #{e.class} #{e.message}") if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
@@ -275,11 +276,13 @@ module GkRecords
 
     # A row of event_rows as one line of text: "label: from > to" or "label: value". A row with one side only keeps
     # its direction in words, the other side as core's "(ingen)": "x > (ingen)" for what was taken out, "(ingen) > x"
-    # for what was put in, so that a removed entry never reads as the value
+    # for what was put in, so that a removed entry never reads as the value. A signed row (a list, − before what was
+    # taken out and + before what was put in) says its sides as they are, the signs carrying the direction
     def row_text(row, sep = '>')
       from = row[:from].presence
       to = row[:to].presence
-      change = if from || to then "#{from || ::I18n.t(:label_none)} #{sep} #{to || ::I18n.t(:label_none)}"
+      change = if (from || to) && row[:signed].present? then [from, to].compact.join(', ')
+               elsif from || to then "#{from || ::I18n.t(:label_none)} #{sep} #{to || ::I18n.t(:label_none)}"
                else row[:value].to_s
                end
       row[:label].present? ? "#{row[:label]}: #{change}" : change
@@ -455,13 +458,16 @@ module GkRecords
     def subscribe(key, &block) = (subscribers[key.to_s] = block)
 
     # The subscriber keys that are reached while the gate to GK GUI Stuff is closed (gate.rb). A subscriber's key is
-    # the id of its plugin (subscribe(:gk_mine)), and these are the plugins released together with this records, whose
-    # own gates ask the same question. Every other subscriber is passed over while the gate is closed: the event is
-    # written, but what follows from it (a trigger, a sign-off request made by itself) is no trace and does not run.
-    # With the gate open every subscriber is reached. A plugin that gets a gate of its own is added here when it is
-    # released.
+    # the id of its plugin (subscribe(:gk_mine)). These are the plugins whose own gates ask the same question, so what
+    # their listener does with the gate closed is only what they keep outside their gate: the release group of this
+    # records, listed whole whether they subscribe or not, and gk_signoff, whose listener is reached so that a GK
+    # Signoff that keeps its sign-off requests made by themselves outside its gate makes them with the gate closed
+    # (one that subscribes only with its gate open is not changed by this). Every other subscriber is passed over
+    # while the gate is closed: the event is written, but what follows from it (a trigger) does not run. With the
+    # gate open every subscriber is reached. Outside the release group, a plugin that subscribes and has a gate of its
+    # own is added here in the records released with it; one that does not subscribe is not added.
     REACHED_WHEN_CLOSED = %w[gk_access gk_compat gk_core_stuff gk_fields gk_gui_stuff gk_icons gk_people gk_records
-                             gk_scenarios gk_tags gk_theme_engine].freeze
+                             gk_scenarios gk_signoff gk_tags gk_theme_engine].freeze
 
     # The same question for one key, for a neighbour that wants to know whether its listener runs now; records itself
     # asks in notify

@@ -84,7 +84,7 @@ module GkRecords
       final_mode = new_mode || before_mode
       final = before.merge(new_values)
       return if final_mode == 'off' || !row.sharp?(final)
-      return if final_mode == before_mode && final == before
+      return if final_mode == before_mode && final.all? { |n, x| same_value?(row.value(n), before[n], x) }
 
       raise ReasonNeeded.new(row.key, 'reason')
     end

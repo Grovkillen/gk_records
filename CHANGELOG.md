@@ -2,6 +2,20 @@
 
 All notable changes to GK Records are documented in this file.
 
+## 1.07.000 (2026-11-17)
+
+### Changed
+
+* A table value counts an empty cell as a missing one, on the instance's row and on a person's, and keeps a text cell without the spaces around it, as a text value is kept. A save that changes nothing that holds is not saved and writes no event.
+* An appearance event names a table's cells and values in the words of the page that owns them, given at the registration (`cells:`, with `blank:` for what counts as empty). An empty cell reads as the page's word for the empty choice, never "none", and an id that is gone reads as the stored value followed by "(no longer exists)". A cell the page no longer knows is said in the word of the cells beside it only when every one of them has that word and they all agree; otherwise its empty side reads "empty" and its value as stored.
+* The neutral word for an empty table cell ("empty") is GK Records' own, and the page that owns the table uses it, so that Save's popover and the event log say it alike.
+* The latest change shown for an appearance setting is the newest event that changed something. An older event whose rows were all empty is passed over there, and the event log still lists it as "Nothing changed". Each setting is looked back in on its own, up to 500 earlier events, so many empty events of one setting never hide another setting's change.
+* An appearance event shown with nothing left to show, its rows empty on both sides, reads "Nothing changed". This holds also for a list or a text in an event written before; events already written are not rewritten.
+* A list value marks what was removed with − and what was added with +, also in the CSV and the search.
+* A cell the owning page no longer knows (a button or a tracker that is gone) is kept by a save that did not concern it.
+* GK Signoff's listener on new events (`gk_signoff`) is reached also while GK GUI Stuff is missing, too old or not active, as the listeners of the plugins released with GK Records are. A GK Signoff that makes its sign-off requests by itself in that state therefore still makes them; a GK Signoff that listens only while GK GUI Stuff is active is not affected. GK Triggers is still passed over in that state.
+* The verification places of GK Records, the issue default and the assessments, are registered also while GK GUI Stuff is missing, too old or not active. An issue's place is then locked to the review as it is otherwise: Verified can be set only through an approved review, never by hand. Nothing more is shown in that state.
+
 ## 1.06.000 (2026-11-16)
 
 ### Added

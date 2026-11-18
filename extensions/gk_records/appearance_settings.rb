@@ -50,11 +50,14 @@ module GkRecords
     # pairs or a lambda giving either), table (choices: the partial that draws it; the value is a hash). person: the
     # person may choose this value when the setting is optional. help: a few words beside the field (a unit); info: a
     # quiet help text under the value, as core's forms write theirs. list and action: see appearance_kinds.rb.
+    # A table may also say which texts in a cell count as empty (blank:, '' always; the same in every language and
+    # whatever the page draws) and give the words of its cells (cells:, a lambda, see book).
     Value = Struct.new(:row, :name, :kind, :default, :min, :max, :step, :choices, :label_key, :help_key, :info_key, :person,
-                       :pattern, :placeholder, :url, :confirm_key, keyword_init: true) do
+                       :pattern, :placeholder, :url, :confirm_key, :blank, :cells, keyword_init: true) do
       def label = ::I18n.t(label_key, default: name)
       def help = help_key && ::I18n.exists?(help_key) ? ::I18n.t(help_key) : ''
       def info = info_key && ::I18n.exists?(info_key) ? ::I18n.t(info_key) : ''
+      def blanks = ([''] + Array(blank).map(&:to_s)).uniq
 
       def choice_list
         c = choices.respond_to?(:call) ? choices.call : choices
@@ -194,7 +197,9 @@ module GkRecords
         [name.to_s, Value.new(row: key, name: name.to_s, kind: kind, default: default, min: o[:min], max: o[:max], step: o[:step],
                               choices: o[:choices], label_key: o[:label] || :"label_gk_appearance_#{key.tr('.', '_')}_#{name}",
                               help_key: o[:help], info_key: o[:info], person: o[:person] ? true : false,
-                              pattern: o[:pattern], placeholder: o[:placeholder], url: o[:url]&.to_sym, confirm_key: o[:confirm])]
+                              pattern: o[:pattern], placeholder: o[:placeholder], url: o[:url]&.to_sym, confirm_key: o[:confirm],
+                              blank: kind == 'table' ? Array(o[:blank]).map(&:to_s).freeze : nil,
+                              cells: kind == 'table' && o[:cells].respond_to?(:call) ? o[:cells] : nil)]
       end.freeze
     end
 
@@ -274,6 +279,7 @@ module GkRecords
     # A save in this process is seen here at once
     def forget!(user = nil)
       @stored = nil
+      @books = nil
       user ? @people&.delete(user.id) : @people = nil
     end
 
@@ -412,14 +418,90 @@ module GkRecords
       when 'select', 'choice' then v.choice_values.include?(raw.to_s) ? raw.to_s : nil
       when 'table'
         h = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
-        h.is_a?(Hash) ? h.deep_stringify_keys : nil
+        h.is_a?(Hash) ? table_compact(v, h) : nil
       when 'list' then coerce_list(v, raw)
       when 'action' then nil
       end
     end
 
-    # The newest event of each setting: { key => { event:, user:, at:, reason:, mode: } }; one query for the rows and one
-    # for the events, never one per setting
+    # A table without its empty cells, at every depth: nothing, an empty table and a text the value counts as empty
+    # (blank:) are the same as a cell that is not there, on the instance's row and on a person's; a text is kept without
+    # the spaces around it, as a text value is, so that "abc " holds what "abc" holds (the box of Spara trims alike)
+    def table_compact(v, h)
+      h = h.to_unsafe_h if h.respond_to?(:to_unsafe_h)
+      return {} unless h.is_a?(Hash)
+
+      blanks = v.respond_to?(:blanks) ? v.blanks : ['']
+      h.each_with_object({}) do |(k, x), out|
+        x = x.to_unsafe_h if x.respond_to?(:to_unsafe_h)
+        x = table_compact(v, x) if x.is_a?(Hash)
+        x = x.strip if x.is_a?(String)
+        next if x.nil? || x == {} || (x.is_a?(String) && blanks.include?(x))
+
+        out[k.to_s] = x
+      end
+    end
+
+    # Whether two values hold the same; for a table, the same cells once the empty ones are left out
+    def same_value?(v, a, b)
+      table = v&.kind == 'table' || a.is_a?(Hash) || b.is_a?(Hash)
+      table ? table_compact(v, a) == table_compact(v, b) : a == b
+    end
+
+    # The words of a table's cells, from the plugin that owns the page (the registration's cells:, a lambda taking
+    # person: for the words of a person's row), kept TTL seconds per language and row: { cell => entry }, an entry
+    # { label:, words: { value => word }, empty:, text:, parts: { inner key => entry } }. label: the cell's name on the
+    # page ('' adds no step to the row's label); words: the value's word (a value not among them no longer exists);
+    # empty: the page's word for the empty choice; text: the value is said as it is; parts: the cells inside it. records
+    # knows nothing of what the cells are. nil without cells:, or when the lambda fails (logged): then the cells are
+    # named by their keys, nothing is called gone and nothing is kept.
+    def book(v, person: false)
+      fn = v.respond_to?(:cells) ? v.cells : nil
+      return nil unless fn.respond_to?(:call)
+
+      key = [v.row, v.name, ::I18n.locale.to_s, person ? 1 : 0]
+      @books ||= {}
+      at, kept = @books[key]
+      return kept if at && Time.current - at <= TTL
+
+      b = fn.parameters.any? { |_, n| n == :person } ? fn.call(person: person) : fn.call
+      return nil unless b.is_a?(Hash)
+
+      b = b.transform_keys(&:to_s)
+      @books.clear if @books.size > 200
+      @books[key] = [Time.current, b]
+      b
+    rescue StandardError => e
+      Rails.logger.warn("[gk_records] the words of #{v.row} #{v.name} not read: #{e.class} #{e.message}")
+      nil
+    end
+
+    # The cells the page does not know kept from before: with the owner's book, a cell it has no entry for (a button or
+    # a tracker that is gone) is never cleared by a save that did not concern it
+    def keep_gone(v, before, after, person: false)
+      b = before.is_a?(Hash) && after.is_a?(Hash) ? book(v, person: person) : nil
+      return after unless b
+
+      kept = table_compact(v, before).reject { |k, _| b.key?(k) }
+      kept.any? ? table_compact(v, kept.merge(after)) : after
+    end
+
+    # A value that no longer exists: the stored value followed by "(no longer exists)"
+    def gone_word(x) = ::I18n.t(:text_gk_records_appearance_gone, value: x.to_s)
+
+    # The neutral word for an empty cell (tomt, empty): owned here and used by the plugin that owns the page where its
+    # page has no word of its own, so that the box of Spara and the event log say it alike
+    def empty_word = ::I18n.t(:label_gk_records_appearance_empty)
+
+    # How far back the newest change is looked for behind an event that changed nothing: this many older events of that
+    # one setting, counted for each such setting on its own
+    LOOK_BACK = 500
+
+    # The newest event of each setting that changed something: { key => { event:, user:, at:, reason:, mode: } }. An
+    # event whose rows are all empty (written before a save with nothing changed was left out; the event log says
+    # Inget ändrades for it) is passed over, and the one before it that changed something stands instead. One query
+    # for the rows and one for the events, never one per setting; only a setting whose newest event changed nothing
+    # asks one more, and those found are read in one
     def last_changes(keys = nil)
       return {} unless defined?(::GkRecordsEvent) && ::GkRecordsAppearanceSetting.table_exists?
 
@@ -428,14 +510,69 @@ module GkRecords
       ids = scope.pluck(:id, :key).to_h
       return {} if ids.empty?
 
-      newest = ::GkRecordsEvent.where(target_type: TARGET, kind: KIND, target_id: ids.keys).group(:target_id).select('MAX(id)')
-      ::GkRecordsEvent.where(id: newest).includes(:user, :reason_note).each_with_object({}) do |e, h|
+      base = ::GkRecordsEvent.where(target_type: TARGET, kind: KIND, target_id: ids.keys)
+      events = ::GkRecordsEvent.where(id: base.group(:target_id).select('MAX(id)')).includes(:user, :reason_note).to_a
+      events = newest_events(events) do |idle|
+        found = older_change_ids(base, idle)
+        found.any? ? ::GkRecordsEvent.where(id: found).includes(:user, :reason_note).to_a : []
+      end
+      events.each_with_object({}) do |e, h|
         h[ids[e.target_id]] = { event: e, user: e.user, at: e.created_at, reason: e.reason_text.to_s.squish,
                                 mode: Array(e.details_hash['mode']).last }
       end
     rescue StandardError => e
       Rails.logger.warn("[gk_records] appearance settings' last changes not read: #{e.message}")
       {}
+    end
+
+    # The newest events that changed something, from each setting's newest event: those that did stand, those that did
+    # not are given to the block, which answers the events that stand for them instead (none for a setting where it
+    # found none)
+    def newest_events(events)
+      idle, kept = events.partition { |e| !changed_something?(e.details_hash) }
+      idle.empty? ? kept : kept + Array(yield(idle))
+    end
+
+    # The id of the newest older event that changed something, for each event that changed nothing, from base (the
+    # events of the settings): each setting is looked back in on its own, so that a setting with many empty events never
+    # hides another's change
+    def older_change_ids(base, idle)
+      idle.filter_map do |e|
+        list = base.where(target_id: e.target_id).where('id < ?', e.id).order(id: :desc).limit(LOOK_BACK).pluck(:id, :target_id, :details)
+        newest_changes(list).first
+      end
+    end
+
+    # The id of each setting's newest event that changed something, from [id, target id, details as JSON] newest first
+    def newest_changes(list)
+      list.each_with_object({}) do |(id, target, json), out|
+        next if out.key?(target)
+
+        d = begin
+          JSON.parse(json.presence || '{}')
+        rescue JSON::ParserError
+          {}
+        end
+        out[target] = id if changed_something?(d)
+      end.values
+    end
+
+    # Whether an event changed something: the start choice, a level, a value with a row of its own (a table's cell that
+    # differs once empty and missing cells count alike, a list's entries, any other value that is not empty on both
+    # sides) or a field of its own; the closed gate's mark alone is no change. The same rule as event_rows, which says
+    # Inget ändrades for an event that changed nothing
+    def changed_something?(details)
+      d = details.is_a?(Hash) ? details.transform_keys(&:to_s) : {}
+      return true if d.key?('appearance_start')
+      return true if d['mode'].is_a?(Array) && d['mode'].size == 2
+
+      key = d['appearance_setting'].to_s
+      row = find(key)
+      name = setting_name(key, row)
+      values = d['values'].is_a?(Hash) ? d['values'] : {}
+      return true if values.any? { |n, change| value_rows(row, name, n.to_s, change).any? }
+
+      d.except('appearance_setting', 'appearance_start', 'mode', 'values').any? { |f, c| !(defined?(Gate) && Gate.detail?(f, c)) }
     end
 
     # The administrator's form: levels { key => mode } and values { key => { name => value } } (shared values too), with
@@ -458,7 +595,10 @@ module GkRecords
             new_mode = modes[key].to_s
             raise Invalid.new(key, 'mode', "#{key}: no level #{new_mode}") unless row.modes.include?(new_mode)
           end
-          new_values = checked_values(row, values[key])
+          new_values = checked_values(row, values[key]).to_h do |n, x|
+            v = row.value(n)
+            [n, v.kind == 'table' ? keep_gone(v, value(row.key, n), x) : x]
+          end
           check_sharp_reason!(row, new_mode, new_values, reason)
           changed << key if write_instance(row, new_mode, new_values, reason, user, reason_key)
         end
@@ -487,7 +627,7 @@ module GkRecords
       before_mode = row.shared? ? nil : mode(row.key)
       before_values = row.values.keys.to_h { |n| [n, value(row.key, n)] }
       mode_change = new_mode && new_mode != before_mode ? [before_mode, new_mode] : nil
-      value_changes = new_values.reject { |n, v| before_values[n] == v }.to_h { |n, v| [n, [before_values[n], v]] }
+      value_changes = new_values.reject { |n, x| same_value?(row.value(n), before_values[n], x) }.to_h { |n, x| [n, [before_values[n], x]] }
       return false if mode_change.nil? && value_changes.empty?
 
       rec.mode = new_mode if mode_change
@@ -515,6 +655,10 @@ module GkRecords
       given = checked_values(row, values).select { |n, _| row.value(n).person }
       rec = ::GkRecordsAppearanceSetting.find_or_initialize_by(key: k, user_id: user.id)
       before = { 'mode' => rec.mode, 'values' => rec.values_hash }
+      given = given.to_h do |n, x|
+        v = row.value(n)
+        [n, v.kind == 'table' ? keep_gone(v, before['values'][n], x, person: true) : x]
+      end
       rec.mode = on.nil? ? nil : (on ? 'on' : 'off') unless on.nil? && values
       rec.values_hash = before['values'].merge(given)
       write_person(user, rec, k, before)
@@ -527,11 +671,14 @@ module GkRecords
       write_person(user, rec, REDMINE, before)
     end
 
+    # Only what changed is an event: a table is compared without its empty cells, so a save that leaves every cell as it
+    # stood, or only sends empty ones, writes nothing
     def write_person(user, rec, key, before)
+      row = find(key)
       details = { 'appearance_setting' => key }
       details['mode'] = [before['mode'], rec.mode] if before['mode'] != rec.mode
-      changes = rec.values_hash.reject { |n, v| before['values'][n] == v }
-      details['values'] = changes.to_h { |n, v| [n, [before['values'][n], v]] } if changes.any?
+      changes = rec.values_hash.reject { |n, x| same_value?(row&.value(n), before['values'][n], x) }
+      details['values'] = changes.to_h { |n, x| [n, [before['values'][n], x]] } if changes.any?
       return rec if details.size == 1
 
       rec.updated_by_id = User.current.logged? ? User.current.id : user.id
@@ -555,7 +702,9 @@ module GkRecords
     # setting's name for its level and "<setting> · <value>" for a value, before and after in the words the pages show
     # (Av, Valfritt, Tvingat; a choice's own word; Ja or Nej). The setting's key is no row of its own: every row names
     # the setting. A value nobody declares any more is named by its name, its values as text; nothing is ever shown as
-    # JSON. person: the words of a person's own choice (På, Av, Följer förvalet). Plain texts only.
+    # JSON. person: the words of a person's own choice (På, Av, Följer förvalet). A table's row where both sides are empty
+    # is left out, also in an event written before empty and missing cells were counted alike (events are never
+    # rewritten); an event with nothing left says so in one row (Inget ändrades), before the gate's row. Plain texts only.
     def event_rows(details, person: false)
       d = details.is_a?(Hash) ? details.transform_keys(&:to_s) : {}
       key = d['appearance_setting'].to_s
@@ -565,7 +714,8 @@ module GkRecords
       out << { label: ::I18n.t(:label_gk_records_appearance_start), to: start_word(Array(d['appearance_start']).last) } if d.key?('appearance_start')
       m = d['mode']
       out << { label: name, from: level_word(m[0], person), to: level_word(m[1], person) } if m.is_a?(Array) && m.size == 2
-      (d['values'].is_a?(Hash) ? d['values'] : {}).each { |n, change| out.concat(value_rows(row, name, n.to_s, change)) }
+      (d['values'].is_a?(Hash) ? d['values'] : {}).each { |n, change| out.concat(value_rows(row, name, n.to_s, change, person: person)) }
+      out << { label: name, value: ::I18n.t(:text_gk_records_appearance_nothing_changed) } if out.empty?
       d.except('appearance_setting', 'appearance_start', 'mode', 'values').each do |f, c|
         out << if defined?(Gate) && Gate.detail?(f, c) then { label: Gate.label, value: Gate.word(c) }
                elsif c.is_a?(Array) && c.size == 2 then { label: f, from: plain_word(c[0]), to: plain_word(c[1]) }
@@ -599,27 +749,115 @@ module GkRecords
       START_CHOICES.key?(c) ? ::I18n.t(:"label_gk_records_appearance_start_#{c}") : (c.presence || ::I18n.t(:label_none))
     end
 
-    # The rows of one value's change: a table one row per inner key that changed ("<setting> · <value> › <key>"), a
-    # list the entries taken out and those put in, any other its value before and after in words
-    def value_rows(row, name, n, change)
+    # The rows of one value's change: a table one row per cell that changed (table_rows), a list the entries taken out
+    # (−) and those put in (+), the sign saying which (signed), any other its value before and after in words
+    def value_rows(row, name, n, change, person: false)
       v = row&.value(n)
-      label = ::I18n.t(:text_gk_records_appearance_value_label, name: name, value: v ? v.label.to_s : n)
+      word = v ? v.label.to_s : n
+      label = ::I18n.t(:text_gk_records_appearance_value_label, name: name, value: word)
       return [{ label: label, value: plain_word(change) }] unless change.is_a?(Array) && change.size == 2
 
       before, after = change
       if before.is_a?(Hash) || after.is_a?(Hash) || v&.kind == 'table'
-        b = before.is_a?(Hash) ? before.transform_keys(&:to_s) : {}
-        a = after.is_a?(Hash) ? after.transform_keys(&:to_s) : {}
-        keys = (b.keys | a.keys).reject { |k| b[k] == a[k] }
-        return keys.map { |k| { label: "#{label} › #{k}", from: plain_word(b[k]), to: plain_word(a[k]) } } if keys.any?
+        return table_rows(v, label, word, before, after, person)
       elsif before.is_a?(Array) || after.is_a?(Array)
         b = Array(before).map(&:to_s)
         a = Array(after).map(&:to_s)
-        gone = b - a
-        come = a - b
-        return [{ label: label, from: gone.join(', ').presence, to: come.join(', ').presence }] if gone.any? || come.any?
+        gone = (b - a).map { |x| "#{MINUS} #{x}" }
+        come = (a - b).map { |x| "+ #{x}" }
+        return [{ label: label, from: gone.join(', ').presence, to: come.join(', ').presence, signed: true }] if gone.any? || come.any?
       end
+      # nothing on both sides (an event written before empty values were counted alike) is no row
+      return [] if blank_word?(before) && blank_word?(after)
+
       [{ label: label, from: value_word(v, before), to: value_word(v, after) }]
+    end
+
+    # Whether a value holds nothing: nil, a text of spaces, an empty list or table
+    def blank_word?(x) = x.nil? || x.to_s.strip.empty? || (x.respond_to?(:empty?) && x.empty?)
+
+    MINUS = "−"
+
+    # A table's rows: one per cell that differs once the empty cells are left out, an inner table's cells each a row of
+    # their own ("<setting> · <value> › <cell> › <part>"); none when no cell differs. With the owner's book the cells and
+    # their values are said in the page's words, an empty cell in the page's word for the empty choice and a cell or a
+    # value the book does not know as gone; without it the cells are named by their keys, as plain words. A cell named
+    # as its value adds nothing to the label.
+    def table_rows(v, label, word, before, after, person)
+      b = flat_cells(table_compact(v, before))
+      a = flat_cells(table_compact(v, after))
+      bk = book(v, person: person)
+      (b.keys | a.keys).reject { |p| b[p] == a[p] }.map do |path|
+        cell, e, kin = cell_of(bk, path)
+        { label: cell.empty? || cell == word ? label : "#{label} › #{cell}", from: cell_word(bk, e, b[path], kin), to: cell_word(bk, e, a[path], kin) }
+      end
+    end
+
+    # { [key, inner key, ...] => value } for every cell that holds something
+    def flat_cells(h, path = [])
+      h.each_with_object({}) do |(k, x), out|
+        x.is_a?(Hash) ? out.merge!(flat_cells(x, path + [k.to_s])) : out[path + [k.to_s]] = x
+      end
+    end
+
+    # A cell's name and its entry in the book: each step's label joined with " › ", a step the book has no entry for
+    # said as gone (and the steps after it by their keys); without a book the keys. Third: when the last step is the one
+    # gone, the entries beside it (its kin), whose words it is said in when they agree
+    def cell_of(bk, path)
+      return [path.join(' › '), nil, nil] unless bk
+
+      names = []
+      level = bk
+      e = nil
+      kin = nil
+      path.each_with_index do |k, i|
+        if level.nil?
+          names << k
+          next
+        end
+        e = level[k]
+        unless e.is_a?(Hash)
+          names << gone_word(k)
+          kin = level.values.select { |x| x.is_a?(Hash) } if i == path.size - 1
+          level = nil
+          e = :gone
+          next
+        end
+        names << e[:label].to_s if e[:label].present?
+        level = e[:parts].is_a?(Hash) ? e[:parts].transform_keys(&:to_s) : nil
+      end
+      [names.join(' › '), e.is_a?(Hash) ? e : nil, kin]
+    end
+
+    # A cell's value in the page's words: the empty choice's word for nothing, the value as it is for a text, the word the
+    # book gives, else gone. A cell the book no longer knows is said in the words of the cells beside it only when every
+    # one of them has a word for it and they all say it alike (the statuses of a tracker that is gone), else its empty side as GK Records' neutral word for empty
+    # and its value as it is; core's "(ingen)" only without a book
+    def cell_word(bk, e, x, kin = nil)
+      if x.nil?
+        return e[:empty].to_s if e && e[:empty].present?
+        return ::I18n.t(:label_none) unless bk
+
+        w = kin_word(kin) { |k| k[:empty] }
+        return w || empty_word
+      end
+      unless bk && e
+        w = bk && kin_word(kin) { |k| k[:words].is_a?(Hash) ? k[:words].transform_keys(&:to_s)[x.to_s] : nil }
+        return w || plain_word(x)
+      end
+      return x.to_s if e[:text] || !e[:words].is_a?(Hash)
+
+      w = e[:words].transform_keys(&:to_s)[x.to_s]
+      w ? w.to_s : gone_word(x)
+    end
+
+    # The one word the entries beside a gone cell give (the block reads it from an entry): only when every one of them
+    # has a word and they all say the same; nil when there are none, when one has no word or when they differ
+    def kin_word(kin)
+      words = Array(kin).map { |k| yield(k).to_s }
+      return nil if words.empty? || words.any?(&:empty?)
+
+      words.uniq.size == 1 ? words.first : nil
     end
 
     # A value in the words the page shows it in: a select's or a choice's own word, Ja or Nej for a flag, a number or a

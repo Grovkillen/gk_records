@@ -9,8 +9,11 @@ module GkRecords
   # the pages and the REST API (Gate::Controller, core's 404), the menu rows (their if:), what records draws on other
   # pages (Gate::Listener, and the helpers in ActionView::Base), the core patches that draw or sort (Patches.apply!),
   # the reason places (Reasons.register, so a reason is never required where its field cannot be drawn), the
-  # appearance settings (AppearanceSettings.register), the verification places, the readings (Readings.ready?), the
-  # choice "med manifest" and what records registers in other plugins' registers. It never closes:
+  # appearance settings (AppearanceSettings.register), the verification status' row, column and levels, the readings
+  # (Readings.ready?), the choice "med manifest" and what records registers in other plugins' registers. It never
+  # closes:
+  # * records' own verification places (Verification.register_places!): an issue's place is locked to the review also
+  #   while the gate is closed, so verified is refused then rather than set by hand. A place draws nothing;
   # * the registers the traces are written through: Targets.register, Kinds.register (events, notes, links,
   #   assessments) and their answers, and the link kind of a #123 in a reason (Reasons.register_link!);
   # * the target and the kind of a changed reason mode (Reasons.register_target!) and of a changed or chosen appearance
